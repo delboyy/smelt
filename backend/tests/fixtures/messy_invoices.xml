@@ -1,0 +1,53 @@
+<?xml version="1.0"?>
+<invoices>
+  <invoice>
+    <id>INV-001</id>
+    <client>john doe</client>
+    <email>JOHN@EXAMPLE.COM</email>
+    <amount>$1,500.00</amount>
+    <currency>USD</currency>
+    <date>2024/01/15</date>
+    <status>paid</status>
+    <due_date>2024/02/15</due_date>
+  </invoice>
+  <invoice>
+    <id>INV-002</id>
+    <client>Jane Smith</client>
+    <email>jane@example.com</email>
+    <amount>2500</amount>
+    <currency>usd</currency>
+    <date>01-20-2024</date>
+    <status>PAID</status>
+    <due_date>02-20-2024</due_date>
+  </invoice>
+  <invoice>
+    <id>INV-003</id>
+    <client>  Bob Wilson </client>
+    <email>BOB@EXAMPLE.COM</email>
+    <amount>$3,200</amount>
+    <currency>USD</currency>
+    <date>2024.02.01</date>
+    <status>overdue</status>
+    <due_date>2024.03.01</due_date>
+  </invoice>
+  <invoice>
+    <id>INV-004</id>
+    <client>Alice Brown</client>
+    <email></email>
+    <amount>1800.50</amount>
+    <currency>Usd</currency>
+    <date>Feb 5, 2024</date>
+    <status>Pending</status>
+    <due_date>Mar 5, 2024</due_date>
+  </invoice>
+  <invoice>
+    <id>INV-001</id>
+    <client>John Doe</client>
+    <email>john@example.com</email>
+    <amount>$1,500.00</amount>
+    <currency>USD</currency>
+    <date>2024-01-15</date>
+    <status>paid</status>
+    <due_date>2024-02-15</due_date>
+  </invoice>
+</invoices>

@@ -1,0 +1,8 @@
+[
+  {"product_name": "wireless bluetooth headphones", "price": "$79.99", "category": "ELECTRONICS", "sku": "WBH-001", "stock": "150", "rating": "4.5", "last_updated": "2024/03/15"},
+  {"product_name": "Wireless Bluetooth Headphones", "price": "79.99", "category": "electronics", "sku": "WBH-001", "stock": "150", "rating": "4.5/5", "last_updated": "03-15-2024"},
+  {"product_name": "organic green tea - 50 bags", "price": "$12.50", "category": "Food & Beverage", "sku": "OGT-050", "stock": "N/A", "rating": "4.8", "last_updated": "Jan 20, 2024"},
+  {"product_name": "ERGONOMIC OFFICE CHAIR", "price": "$349", "category": "furniture", "sku": "EOC-200", "stock": "23", "rating": "4.2 stars", "last_updated": "2024.02.28"},
+  {"product_name": "usb-c charging cable 6ft", "price": "14.99 USD", "category": "Electronics/Accessories", "sku": "", "stock": "500+", "rating": "", "last_updated": "2024-01-10"},
+  {"product_name": "Organic Green Tea  -  50 Bags", "price": "12.50", "category": "food", "sku": "OGT-050", "stock": "89", "rating": "4.8", "last_updated": "2024/01/20"}
+]

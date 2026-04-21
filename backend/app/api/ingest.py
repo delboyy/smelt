@@ -22,7 +22,10 @@ async def ingest_file(
     if file is None:
         raise HTTPException(status_code=400, detail="No file provided")
 
-    raw_bytes = await file.read()
+    MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
+    raw_bytes = await file.read(MAX_UPLOAD_BYTES + 1)
+    if len(raw_bytes) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File exceeds 10 MB limit")
     encoding = detect_encoding(raw_bytes)
     try:
         content = raw_bytes.decode(encoding, errors="replace")
@@ -71,7 +74,7 @@ async def _process_content(content: str, encoding: str, filename: str) -> JSONRe
             detail={
                 "error": {
                     "code": "PARSE_ERROR",
-                    "message": f"Failed to parse {fmt} data: {str(e)}",
+                    "message": f"Failed to parse {fmt} data. Check that the file is valid and not corrupted.",
                     "details": {"format": fmt},
                 }
             },

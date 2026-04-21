@@ -51,12 +51,23 @@ def parse_json(content: str) -> list[dict[str, Any]]:
 
 def parse_xml(content: str) -> list[dict[str, Any]]:
     """Parse XML into list of records from child elements of root."""
+    # Safe parser: no external entities, no DTD network access (prevents XXE)
+    safe_parser = etree.XMLParser(
+        resolve_entities=False,
+        no_network=True,
+        load_dtd=False,
+        recover=False,
+    )
     try:
-        root = etree.fromstring(content.encode("utf-8"))
+        root = etree.fromstring(content.encode("utf-8"), safe_parser)
     except etree.XMLSyntaxError:
-        # Try to recover
-        parser = etree.XMLParser(recover=True)
-        root = etree.fromstring(content.encode("utf-8"), parser=parser)
+        recovery_parser = etree.XMLParser(
+            resolve_entities=False,
+            no_network=True,
+            load_dtd=False,
+            recover=True,
+        )
+        root = etree.fromstring(content.encode("utf-8"), recovery_parser)
 
     records = []
     for child in root:

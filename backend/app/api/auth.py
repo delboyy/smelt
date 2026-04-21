@@ -17,7 +17,7 @@ try:
     from jose import jwt
     from passlib.context import CryptContext
     _pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    _JWT_SECRET = os.environ.get("NEXTAUTH_SECRET", "dev-jwt-secret-change-me")
+    _JWT_SECRET = os.environ.get("NEXTAUTH_SECRET") or ""
     _JWT_ALGO = "HS256"
     _JWT_EXPIRE_HOURS = 24 * 30  # 30 days
     _AUTH_AVAILABLE = True
@@ -43,6 +43,8 @@ class AuthResponse(BaseModel):
 
 
 def _make_token(user: User) -> str:
+    if not _JWT_SECRET:
+        raise HTTPException(503, "NEXTAUTH_SECRET env var must be set")
     payload = {
         "sub": user.id,
         "email": user.email,

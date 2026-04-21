@@ -3,6 +3,7 @@
 import csv
 import json
 import io
+from xml.sax.saxutils import escape as xml_escape
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 
@@ -64,12 +65,16 @@ async def export_data(request: ExportRequest) -> StreamingResponse | JSONRespons
 
 
 def _to_xml(records: list[dict]) -> str:
+    import re
     lines = ['<?xml version="1.0" encoding="UTF-8"?>', "<records>"]
     for r in records:
         lines.append("  <record>")
         for k, v in r.items():
-            tag = k.replace(" ", "_").lower()
-            val = "" if v is None else str(v)
+            # Sanitize tag: strip invalid XML name chars, no leading digits
+            tag = re.sub(r"[^a-zA-Z0-9_\-]", "_", str(k).strip()).lower()
+            if not tag or tag[0].isdigit():
+                tag = f"field_{tag}"
+            val = xml_escape("" if v is None else str(v))
             lines.append(f"    <{tag}>{val}</{tag}>")
         lines.append("  </record>")
     lines.append("</records>")

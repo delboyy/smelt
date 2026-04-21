@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     llm_model: str = "claude-sonnet-4-6"
     llm_max_tokens: int = 4096
 
+    openrouter_api_key: str = ""
+    openrouter_model: str = "deepseek/deepseek-chat"
+
     salesforce_client_id: str = ""
     salesforce_client_secret: str = ""
     hubspot_api_key: str = ""

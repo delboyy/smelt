@@ -1,10 +1,17 @@
-"""LLM-powered transform spec generator using Claude API."""
+"""LLM-powered transform spec generator.
+
+Priority: OpenRouter (DeepSeek) → Anthropic (Claude) → rule-based fallback.
+"""
 
 import json
+import logging
 from typing import Any
+import httpx
 import anthropic
 from app.config import get_settings
 from app.models.schemas import TransformSpec, FieldSchema, TransformAction, DedupConfig
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are a data quality expert. Analyze the provided data sample and generate a JSON transform spec.
 
@@ -96,49 +103,95 @@ async def generate_transform_spec(
     source_format: str,
     record_count: int,
 ) -> TransformSpec:
-    """Call Claude API to generate a transform spec from a data sample."""
+    """Generate a transform spec via LLM or rule-based fallback.
+
+    Tries in order: OpenRouter → Anthropic → rule-based.
+    """
     settings = get_settings()
-
-    if not settings.anthropic_api_key:
-        # Fall back to rule-based inference
-        return _rule_based_spec(sample, source_format, record_count)
-
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-
     sample_json = json.dumps(sample[:20], indent=2, default=str)
     columns = list(sample[0].keys()) if sample else []
+    prompt = (
+        f"Analyze this data sample and generate a transform spec.\n\n"
+        f"Source format: {source_format}\nTotal records: {record_count}\n"
+        f"Columns: {columns}\n\nSample data (first 20 rows):\n{sample_json}\n\n"
+        f"Generate the transform spec JSON."
+    )
 
-    prompt = f"""Analyze this data sample and generate a transform spec.
+    if settings.openrouter_api_key:
+        spec = await _call_openrouter(settings, prompt, source_format, record_count, len(sample))
+        if spec:
+            return spec
 
-Source format: {source_format}
-Total records: {record_count}
-Columns: {columns}
+    if settings.anthropic_api_key:
+        spec = await _call_anthropic(settings, prompt, source_format, record_count, len(sample))
+        if spec:
+            return spec
 
-Sample data (first 20 rows):
-{sample_json}
+    return _rule_based_spec(sample, source_format, record_count)
 
-Generate the transform spec JSON."""
 
+async def _call_openrouter(
+    settings: Any,
+    prompt: str,
+    source_format: str,
+    record_count: int,
+    sample_size: int,
+) -> TransformSpec | None:
     try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.openrouter_api_key}",
+                    "Content-Type": "application/json",
+                    "HTTP-Referer": "https://smelt.fyi",
+                    "X-Title": "Smelt",
+                },
+                json={
+                    "model": settings.openrouter_model,
+                    "max_tokens": settings.llm_max_tokens,
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "response_format": {"type": "json_object"},
+                },
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"]
+            spec_dict = json.loads(content)
+            logger.info("OpenRouter (%s) generated spec", settings.openrouter_model)
+            return _dict_to_spec(spec_dict, source_format, record_count, sample_size)
+    except Exception as e:
+        logger.warning("OpenRouter call failed: %s", e)
+        return None
+
+
+async def _call_anthropic(
+    settings: Any,
+    prompt: str,
+    source_format: str,
+    record_count: int,
+    sample_size: int,
+) -> TransformSpec | None:
+    try:
+        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
         message = await client.messages.create(
             model=settings.llm_model,
             max_tokens=settings.llm_max_tokens,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": prompt}],
         )
-
         content = message.content[0].text if message.content else ""
-        # Extract JSON from response
         json_start = content.find("{")
         json_end = content.rfind("}") + 1
         if json_start >= 0 and json_end > json_start:
             spec_dict = json.loads(content[json_start:json_end])
-            return _dict_to_spec(spec_dict, source_format, record_count, len(sample))
-    except Exception:
-        pass
-
-    # Fallback to rule-based
-    return _rule_based_spec(sample, source_format, record_count)
+            logger.info("Anthropic (%s) generated spec", settings.llm_model)
+            return _dict_to_spec(spec_dict, source_format, record_count, sample_size)
+    except Exception as e:
+        logger.warning("Anthropic call failed: %s", e)
+    return None
 
 
 def _dict_to_spec(

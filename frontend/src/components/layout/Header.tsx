@@ -4,9 +4,12 @@ import { T } from "@/lib/constants";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useSmeltStore } from "@/lib/store";
+import { useSession, signOut } from "next-auth/react";
+import Link from "next/link";
 
 export function Header() {
   const { step, reset } = useSmeltStore();
+  const { data: session } = useSession();
 
   return (
     <div
@@ -19,7 +22,7 @@ export function Header() {
         background: T.surface,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+      <Link href="/" style={{ display: "flex", alignItems: "center", gap: "12px", textDecoration: "none" }}>
         <div
           style={{
             width: "30px",
@@ -57,12 +60,33 @@ export function Header() {
             Raw data in. Pure data out.
           </div>
         </div>
-      </div>
+      </Link>
+
       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
         {step !== "Ingest" && <Button onClick={reset}>New smelt</Button>}
         <Badge color={T.accent} bg={T.accentBg} border={T.accentBorder}>
           MVP
         </Badge>
+        {session ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ fontSize: "12px", color: T.text3 }}>{session.user?.email}</span>
+            <Button onClick={() => signOut({ callbackUrl: "/" })}>Sign out</Button>
+          </div>
+        ) : (
+          <Link
+            href="/login"
+            style={{
+              fontSize: "13px",
+              color: T.text2,
+              textDecoration: "none",
+              padding: "5px 10px",
+              border: `1px solid ${T.border}`,
+              borderRadius: "6px",
+            }}
+          >
+            Log in
+          </Link>
+        )}
       </div>
     </div>
   );

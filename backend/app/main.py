@@ -1,11 +1,22 @@
 """Smelt FastAPI application entry point."""
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.api import ingest, clean, export, jobs
+from app.api import auth as auth_api
+from app.core.database import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+
 
 app = FastAPI(
+    lifespan=lifespan,
     title="Smelt API",
     description="Raw data in. Pure data out.",
     version="0.1.0",
@@ -35,6 +46,7 @@ app.include_router(ingest.router, prefix="/api/v1", tags=["ingest"])
 app.include_router(clean.router, prefix="/api/v1", tags=["clean"])
 app.include_router(export.router, prefix="/api/v1", tags=["export"])
 app.include_router(jobs.router, prefix="/api/v1", tags=["jobs"])
+app.include_router(auth_api.router, prefix="/api/v1", tags=["auth"])
 
 
 @app.get("/health")

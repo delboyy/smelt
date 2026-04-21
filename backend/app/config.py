@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     cors_origins: str = ""  # comma-separated; empty = use defaults
 
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/smelt"
+    database_url: str = "sqlite+aiosqlite:///./smelt.db"
     redis_url: str = "redis://localhost:6379/0"
 
     aws_access_key_id: str = ""

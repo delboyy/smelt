@@ -15,7 +15,10 @@ __pycache__/
 *.pyd
 .Python
 venv/
+.venv/
 env/
+*.db
+smelt.db
 .env
 *.egg-info/
 dist/
@@ -53,3 +56,4 @@ htmlcov/
 
 # Misc
 .turbo/
+dump.rdb

@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_secret_key: str = "dev-secret-key"
     frontend_url: str = "http://localhost:3000"
+    cors_origins: str = ""  # comma-separated; empty = use defaults
 
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/smelt"
     redis_url: str = "redis://localhost:6379/0"

@@ -1,10 +1,17 @@
-"""GET /api/v1/job/{id} — job status polling."""
+"""GET /api/v1/job/{id} — job status polling. GET /api/v1/jobs — job history."""
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from app.core.job_store import get_job
+from app.core.job_store import get_job, get_job_index
 
 router = APIRouter()
+
+
+@router.get("/jobs")
+async def list_jobs(page: int = 1, limit: int = 20):
+    """List recent jobs (paginated)."""
+    jobs, total = get_job_index(page=page, limit=min(limit, 50))
+    return {"jobs": jobs, "total": total, "page": page, "pages": (total + limit - 1) // limit}
 
 
 @router.get("/job/{job_id}")

@@ -2,6 +2,7 @@
 
 import json
 import logging
+from datetime import datetime, UTC
 from typing import Any
 
 import redis as redis_lib
@@ -65,3 +66,37 @@ def update_job(job_id: str, updates: dict[str, Any], ttl: int = FREE_TTL) -> Non
         return
     job.update(updates)
     set_job(job_id, job, ttl)
+
+
+def add_to_job_index(job_id: str, meta: dict) -> None:
+    """Track job in the global job index (last 200 jobs)."""
+    entry = json.dumps({"job_id": job_id, "created_at": datetime.now(UTC).isoformat(), **meta})
+    client = _get_redis()
+    if client:
+        try:
+            client.lpush("smelt:job_index", entry)
+            client.ltrim("smelt:job_index", 0, 199)
+        except Exception:
+            pass
+    # Always keep in-memory index too
+    if not hasattr(add_to_job_index, "_index"):
+        add_to_job_index._index = []
+    add_to_job_index._index.insert(0, json.loads(entry))
+    add_to_job_index._index = add_to_job_index._index[:200]
+
+
+def get_job_index(page: int = 1, limit: int = 20) -> tuple[list[dict], int]:
+    """Get paginated job index."""
+    items = []
+    client = _get_redis()
+    if client:
+        try:
+            raw = client.lrange("smelt:job_index", 0, 199)
+            items = [json.loads(r) for r in raw]
+        except Exception:
+            pass
+    if not items and hasattr(add_to_job_index, "_index"):
+        items = add_to_job_index._index
+    total = len(items)
+    start = (page - 1) * limit
+    return items[start:start + limit], total

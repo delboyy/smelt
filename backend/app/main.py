@@ -7,6 +7,7 @@ from app.config import get_settings
 from app.api import ingest, clean, export, jobs
 from app.api import auth as auth_api
 from app.core.database import init_db
+import app.models.api_key  # noqa: F401 — ensures ApiKey table is registered with Base.metadata
 
 
 @asynccontextmanager

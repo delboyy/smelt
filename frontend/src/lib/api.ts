@@ -7,6 +7,15 @@ export interface FieldSchemaResponse {
   sample_values: string[];
 }
 
+export interface QualityScore {
+  score: number;
+  completeness: number;
+  consistency: number;
+  uniqueness: number;
+  conformity: number;
+  grade: "A" | "B" | "C" | "D" | "F";
+}
+
 export interface IngestResponse {
   job_id: string;
   status: string;
@@ -17,6 +26,7 @@ export interface IngestResponse {
   schema: Record<string, FieldSchemaResponse>;
   preview: Record<string, unknown>[];
   issues_detected: Record<string, number>;
+  quality_score?: QualityScore;
 }
 
 export interface AuditEntry {
@@ -43,6 +53,34 @@ export interface CleanResponse {
   changes: AuditEntry[];
   cleaned_preview: Record<string, unknown>[];
   validation_warnings: string[];
+  quality_score?: QualityScore;
+}
+
+export interface JobIndexEntry {
+  job_id: string;
+  created_at: string;
+  filename: string;
+  format: string;
+  record_count: number;
+  quality_score_before?: QualityScore;
+}
+
+export interface JobsResponse {
+  jobs: JobIndexEntry[];
+  total: number;
+  page: number;
+  pages: number;
+}
+
+export interface ApiKeyEntry {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used: string | null;
+}
+
+export interface ApiKeyCreated extends ApiKeyEntry {
+  key: string;
 }
 
 async function handleResponse<T>(res: Response): Promise<T> {
@@ -65,6 +103,15 @@ export async function ingestRaw(data: string): Promise<IngestResponse> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ data, format: "auto", encoding: "auto" }),
+  });
+  return handleResponse<IngestResponse>(res);
+}
+
+export async function ingestUrl(url: string): Promise<IngestResponse> {
+  const res = await fetch(`${API_URL}/api/v1/ingest/url`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
   });
   return handleResponse<IngestResponse>(res);
 }
@@ -92,4 +139,33 @@ export async function downloadExport(jobId: string, format: string): Promise<voi
   a.download = `smelted_data.${format.toLowerCase()}`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export async function fetchJobs(page = 1, limit = 20): Promise<JobsResponse> {
+  const res = await fetch(`${API_URL}/api/v1/jobs?page=${page}&limit=${limit}`);
+  return handleResponse<JobsResponse>(res);
+}
+
+export async function fetchApiKeys(token: string): Promise<ApiKeyEntry[]> {
+  const res = await fetch(`${API_URL}/api/v1/auth/api-keys`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<ApiKeyEntry[]>(res);
+}
+
+export async function createApiKey(token: string, name: string): Promise<ApiKeyCreated> {
+  const res = await fetch(`${API_URL}/api/v1/auth/api-keys`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ name }),
+  });
+  return handleResponse<ApiKeyCreated>(res);
+}
+
+export async function revokeApiKey(token: string, id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/v1/auth/api-keys/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`Revoke failed: ${res.status}`);
 }

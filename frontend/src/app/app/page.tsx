@@ -5,8 +5,10 @@ import { Header } from "@/components/layout/Header";
 import { StepBar } from "@/components/layout/StepBar";
 import { FileDropzone } from "@/components/ingest/FileDropzone";
 import { PasteInput } from "@/components/ingest/PasteInput";
+import { UrlInput } from "@/components/ingest/UrlInput";
 import { SampleButtons } from "@/components/ingest/SampleButtons";
 import { FormatBadge } from "@/components/ingest/FormatBadge";
+import { QualityScore } from "@/components/ui/QualityScore";
 import { SchemaDisplay } from "@/components/preview/SchemaDisplay";
 import { DataPreview } from "@/components/preview/DataPreview";
 import { CleaningProgress } from "@/components/clean/CleaningProgress";
@@ -23,7 +25,7 @@ import { useSmeltStore } from "@/lib/store";
 import type { FieldType } from "@/lib/detection/schema";
 import type { Issue, CleaningStats } from "@/lib/cleaning/engine";
 import { toCSV, toJSON, toXML } from "@/lib/export/formatters";
-import { ingestFile, ingestRaw, cleanJob, downloadExport } from "@/lib/api";
+import { ingestFile, ingestRaw, ingestUrl, cleanJob, downloadExport } from "@/lib/api";
 import type { IngestResponse, CleanResponse } from "@/lib/api";
 import { T } from "@/lib/constants";
 
@@ -91,6 +93,9 @@ export default function SmeltApp() {
 
   const [copied, setCopied] = useState(false);
   const [cleanedRecordCount, setCleanedRecordCount] = useState(0);
+  const [ingestTab, setIngestTab] = useState<"file" | "paste" | "url">("file");
+
+  const { qualityScoreBefore, qualityScoreAfter, setQualityScoreBefore, setQualityScoreAfter } = useSmeltStore();
 
   const applyIngestResponse = useCallback(
     (data: IngestResponse) => {
@@ -99,9 +104,11 @@ export default function SmeltApp() {
       setFormat(f);
       setParsed(p);
       setSchema(s);
+      if (data.quality_score) setQualityScoreBefore(data.quality_score);
+      setQualityScoreAfter(null);
       setStep("Preview");
     },
-    [setJobId, setFormat, setParsed, setSchema, setStep]
+    [setJobId, setFormat, setParsed, setSchema, setStep, setQualityScoreBefore, setQualityScoreAfter]
   );
 
   const processFile = useCallback(
@@ -137,6 +144,22 @@ export default function SmeltApp() {
     [setRawData, applyIngestResponse, setError, setLoading]
   );
 
+  const processUrl = useCallback(
+    async (url: string) => {
+      setError(null);
+      setLoading(true);
+      try {
+        const data = await ingestUrl(url);
+        applyIngestResponse(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "URL fetch failed");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [applyIngestResponse, setError, setLoading]
+  );
+
   const runClean = useCallback(async () => {
     if (!jobId) return;
     setError(null);
@@ -147,6 +170,7 @@ export default function SmeltApp() {
       const { issues, stats, cleaned, schema: s } = mapCleanResponse(data);
       setCleanedRecordCount(data.stats.records_out);
       setResult({ cleaned, issues, schema: s, stats });
+      if (data.quality_score) setQualityScoreAfter(data.quality_score);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Cleaning failed");
       setStep("Preview");
@@ -259,29 +283,43 @@ export default function SmeltApp() {
                     animation: "smeltSpin 0.8s linear infinite",
                   }}
                 />
-                Uploading...
+                {ingestTab === "url" ? "Fetching URL…" : "Uploading…"}
               </div>
             ) : (
               <>
-                <FileDropzone onFile={processFile} />
-
-                <div style={dividerStyle}>
-                  <div style={{ flex: 1, height: "1px", background: T.border }} />
-                  <span
-                    style={{
-                      fontSize: "11px",
-                      color: T.text3,
-                      letterSpacing: "1px",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    or paste raw data
-                  </span>
-                  <div style={{ flex: 1, height: "1px", background: T.border }} />
+                {/* Tabs */}
+                <div style={{ display: "flex", gap: "4px", marginBottom: "20px", background: T.surface, borderRadius: "8px", padding: "4px", border: `1px solid ${T.border}` }}>
+                  {(["file", "paste", "url"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setIngestTab(tab)}
+                      style={{
+                        flex: 1,
+                        padding: "7px 12px",
+                        borderRadius: "6px",
+                        border: "none",
+                        background: ingestTab === tab ? T.accentBg : "transparent",
+                        color: ingestTab === tab ? T.accent : T.text3,
+                        fontSize: "12px",
+                        fontWeight: ingestTab === tab ? 700 : 400,
+                        cursor: "pointer",
+                        fontFamily: "'DM Sans', sans-serif",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      {tab === "file" ? "Drop file" : tab === "paste" ? "Paste data" : "Fetch URL"}
+                    </button>
+                  ))}
                 </div>
 
-                <PasteInput onProcess={() => rawData.trim() && processRaw(rawData)} />
-                <SampleButtons onSelect={processRaw} />
+                {ingestTab === "file" && <FileDropzone onFile={processFile} />}
+                {ingestTab === "paste" && (
+                  <>
+                    <PasteInput onProcess={() => rawData.trim() && processRaw(rawData)} />
+                    <SampleButtons onSelect={processRaw} />
+                  </>
+                )}
+                {ingestTab === "url" && <UrlInput onFetch={processUrl} loading={isLoading} />}
               </>
             )}
           </div>
@@ -317,6 +355,9 @@ export default function SmeltApp() {
               </div>
             </div>
 
+            {qualityScoreBefore && (
+              <QualityScore score={qualityScoreBefore} label="Data health — before cleaning" />
+            )}
             <SchemaDisplay schema={schema} />
             <DataPreview records={parsed} schema={schema} />
 
@@ -364,6 +405,15 @@ export default function SmeltApp() {
               {result.issues.length} changes made · {cleanedRecordCount || result.cleaned.length} clean records ready
             </p>
 
+            {qualityScoreAfter && qualityScoreBefore && (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
+                <QualityScore score={qualityScoreBefore} label="Before" />
+                <QualityScore score={qualityScoreAfter} label="After" />
+              </div>
+            )}
+            {qualityScoreAfter && !qualityScoreBefore && (
+              <QualityScore score={qualityScoreAfter} label="Data health — after cleaning" />
+            )}
             <StatsDashboard stats={result.stats} cleanCount={cleanedRecordCount || result.cleaned.length} />
             <IssueFilters issues={result.issues} activeFilter={issueFilter} onFilter={setIssueFilter} />
             <ChangeLog issues={filteredIssues} />

@@ -9,6 +9,7 @@ from app.core.planner import generate_transform_spec
 from app.core.validator import validate_spec
 from app.core.executor import execute_transforms
 from app.core.auditor import build_audit_summary
+from app.core.quality_scorer import calculate_data_quality_score
 from app.models.schemas import CleanRequest
 
 router = APIRouter()
@@ -52,11 +53,16 @@ async def clean_data(request: CleanRequest) -> JSONResponse:
     # Phase 5: Build audit summary
     stats = build_audit_summary(records, cleaned, audit_entries)
 
+    # Quality score after cleaning
+    schema = job.get("schema", {})
+    quality = calculate_data_quality_score(cleaned, schema)
+
     update_job(request.job_id, {
         "status": "cleaned",
         "cleaned": cleaned,
         "spec": spec.model_dump(mode="json", by_alias=True),
         "audit": [e.model_dump(mode="json") for e in audit_entries],
+        "quality_score_after": quality,
     })
 
     return JSONResponse(
@@ -69,5 +75,6 @@ async def clean_data(request: CleanRequest) -> JSONResponse:
             "flagged": [],
             "cleaned_preview": cleaned[:10],
             "validation_warnings": validation.warnings,
+            "quality_score": quality,
         }
     )

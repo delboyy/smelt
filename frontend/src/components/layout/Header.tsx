@@ -64,12 +64,17 @@ export function Header() {
 
       <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
         {step !== "Ingest" && <Button onClick={reset}>New smelt</Button>}
+        <Link href="/app/history" style={{ fontSize: "12px", color: T.text3, textDecoration: "none" }}>
+          History
+        </Link>
         <Badge color={T.accent} bg={T.accentBg} border={T.accentBorder}>
           MVP
         </Badge>
         {session ? (
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <span style={{ fontSize: "12px", color: T.text3 }}>{session.user?.email}</span>
+            <Link href="/app/settings" style={{ fontSize: "12px", color: T.text3, textDecoration: "none" }}>
+              {session.user?.email}
+            </Link>
             <Button onClick={() => signOut({ callbackUrl: "/" })}>Sign out</Button>
           </div>
         ) : (

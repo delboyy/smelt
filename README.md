@@ -80,7 +80,9 @@ cd backend && NEXTAUTH_SECRET=test pytest tests/ -q
 |---|---|
 | `/` | Landing page — hero, pricing, how-it-works |
 | `/login` | Login + signup (credentials or Google OAuth) |
-| `/app` | Data cleaning tool |
+| `/app` | Data cleaning tool (file · paste · URL ingest) |
+| `/app/history` | Cleaning history dashboard |
+| `/app/settings` | API key management |
 
 ## Project structure
 
@@ -163,8 +165,13 @@ Smelt auto-detects and normalizes 12 field types:
 | `POST` | `/api/v1/clean` | Run cleaning pipeline on a job |
 | `POST` | `/api/v1/export` | Stream cleaned data (CSV/JSON/XML) |
 | `GET` | `/api/v1/job/{id}` | Get job status |
+| `POST` | `/api/v1/ingest/url` | Fetch + ingest from public URL |
+| `GET` | `/api/v1/jobs` | Paginated cleaning history |
 | `POST` | `/api/v1/auth/register` | Create account |
 | `POST` | `/api/v1/auth/login` | Login → JWT |
+| `GET` | `/api/v1/auth/api-keys` | List API keys |
+| `POST` | `/api/v1/auth/api-keys` | Generate API key |
+| `DELETE` | `/api/v1/auth/api-keys/{id}` | Revoke API key |
 
 Interactive docs at `http://localhost:8000/docs` when running locally.
 

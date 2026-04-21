@@ -41,12 +41,24 @@ Return ONLY valid JSON matching this exact schema:
   }
 }
 
-Available actions: trim, collapse_whitespace, lowercase, uppercase, title_case,
-normalize_date, extract_digits, format_phone, strip_currency, parse_float,
-parse_int, map_values, set_null_if_empty, set_null_if_invalid,
-standardize_suffix, normalize_category
+Action reference (use exactly these names):
+- trim, collapse_whitespace: whitespace cleanup
+- lowercase, uppercase, title_case: case normalization
+- normalize_date: parse any date format → ISO 8601 (YYYY-MM-DD)
+- extract_digits: strip ALL non-digit chars incl. decimals — use ONLY for phone/id fields, NEVER for decimal numbers
+- format_phone: format digit string as (NXX) NXX-XXXX
+- strip_currency: remove $, commas, currency symbols/codes
+- parse_float: parse decimal number from string (handles "4.2 stars", "$1,200", "14.99 USD") — use for rating/score/price/number fields
+- parse_int: parse integer from string
+- map_values, set_null_if_empty, set_null_if_invalid
+- standardize_suffix: normalize company suffixes (LLC, Inc, Corp)
+- normalize_category: standardize category strings
 
-Be conservative with confidence scores. Flag ambiguous fields with lower confidence."""
+Key rules:
+- For phone fields: use ["extract_digits", "format_phone"]
+- For decimal/float number fields (rating, score, price, amount): use ["strip_currency", "parse_float"] or just ["parse_float"] — NEVER use extract_digits first
+- For currency fields: use ["strip_currency", "parse_float"]
+- Be conservative with confidence scores. Flag ambiguous fields with lower confidence."""
 
 
 def infer_schema_rule_based(records: list[dict[str, Any]]) -> dict[str, str]:

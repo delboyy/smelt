@@ -1,35 +1,33 @@
 # Project Status
 
-**Last updated:** 2026-04-20
+**Last updated:** 2026-04-21
 
-## Current phase: Phase 1 complete — full-stack MVP running locally
+## Current phase: Phase 2 in progress — frontend wired, Redis live, frontend deployed
 
 ---
 
 ## What's built
 
-### Frontend (Next.js 14 — fully complete)
+### Frontend (Next.js 14 — fully complete + wired to backend)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
 | **Next.js 14 scaffold** | ✅ Complete | App router, TypeScript strict mode, Tailwind CSS, port 3002 |
 | **Brand & design system** | ✅ Complete | Dark-only (#09090b), amber #d97706, copper #c2855a, DM Sans + DM Mono |
-| **Zustand global store** | ✅ Complete | step, rawData, format, parsed, schema, result, exportFormat, issueFilter |
+| **Zustand global store** | ✅ Complete | step, rawData, format, parsed, schema, result, exportFormat, issueFilter, **jobId, isLoading, error** |
+| **API client (lib/api.ts)** | ✅ Complete | ingestFile, ingestRaw, cleanJob, downloadExport — typed, error-handled |
+| **QueryClientProvider** | ✅ Complete | TanStack Query wired in providers.tsx |
 | **Format detection** | ✅ Complete | Auto-detects JSON, CSV, XML, TSV from content patterns |
 | **Parsers** | ✅ Complete | CSV, JSON, XML, TSV — SSR-safe (no DOMParser dependency) |
 | **Schema inference** | ✅ Complete | 12 field types inferred from column names + content heuristics |
 | **12 normalizers** | ✅ Complete | name, email, phone, date, currency, currency_code, status, company, category, number, id, text |
-| **Client-side cleaning engine** | ✅ Complete | Applies all normalizers, exact-match dedup via fingerprint hash |
-| **Export formatters** | ✅ Complete | CSV, JSON, XML download |
-| **5-step UI flow** | ✅ Complete | Ingest → Preview → Clean → Review → Export |
-| **Ingest components** | ✅ Complete | FileDropzone, PasteInput, SampleButtons (CRM/Product/Invoice), FormatBadge |
-| **Preview components** | ✅ Complete | SchemaDisplay (field types), DataPreview (paginated table) |
-| **Clean components** | ✅ Complete | CleaningProgress spinner |
-| **Review components** | ✅ Complete | StatsDashboard (stat cards), IssueFilters, ChangeLog (before/after diff) |
-| **Export components** | ✅ Complete | FormatPicker, ExportPreview, DownloadButton, CRMPushTeaser |
-| **UI primitives** | ✅ Complete | Badge, Button (gradient), StatCard, DataTable (DM Mono sticky-header) |
-| **Header + StepBar** | ✅ Complete | Amber S logo, 5-step progress indicator |
-| **Sample data** | ✅ Complete | Built-in CRM contacts CSV, product feed JSON, invoices XML for demos |
+| **Client-side cleaning engine** | ✅ Retained | Still available as fallback; active pipeline now uses backend |
+| **Export formatters** | ✅ Complete | CSV, JSON, XML — used for preview/copy; download fetches from API |
+| **5-step UI flow** | ✅ Complete | Ingest → Preview → Clean → Review → Export — all steps call backend |
+| **FileDropzone** | ✅ Updated | Now passes File object to API (was reading as text client-side) |
+| **DownloadButton** | ✅ Updated | Now takes onDownload callback; downloads full dataset from /export endpoint |
+| **Error states** | ✅ Complete | Error banner on Ingest step, error panel on Review step |
+| **Loading states** | ✅ Complete | Upload spinner on Ingest, CleaningProgress on Review |
 
 ### Frontend tests (119 passing)
 
@@ -41,11 +39,11 @@
 | cleaning.test.ts | 11 | ✅ All pass |
 | **Total** | **119** | ✅ |
 
-### Backend (FastAPI — scaffold complete, AI pipeline stubbed)
+### Backend (FastAPI — fully wired, Redis-backed)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **FastAPI scaffold** | ✅ Complete | App structure, CORS, Pydantic v2 models |
+| **FastAPI scaffold** | ✅ Complete | App structure, CORS (allows localhost:3002 + prod domain) |
 | **Pydantic schemas** | ✅ Complete | TransformSpec, FieldSchema, TransformAction, DedupConfig, CleaningStats, AuditEntry, IngestResponse, CleanRequest, ExportRequest |
 | **Format detector** | ✅ Complete | MIME type + content pattern detection |
 | **Multi-format parser** | ✅ Complete | CSV, JSON, XML, TSV server-side parsing |
@@ -58,34 +56,48 @@
 | **Clean API** | ✅ Complete | POST /api/v1/clean — full pipeline: sample → plan → validate → execute → audit |
 | **Export API** | ✅ Complete | POST /api/v1/export — streams CSV/JSON/XML response |
 | **Job API** | ✅ Complete | GET /api/v1/job/{id} — job status and results |
-| **In-memory job store** | ✅ Complete | `_jobs` dict (dev only — needs Redis/PG for production) |
+| **Redis job store** | ✅ Complete | `smelt:job:{id}` keys, 24h TTL, graceful in-memory fallback if Redis is down |
+| **Executor bug fixes** | ✅ Fixed | parse_float/parse_int now strip non-numeric chars before conversion ("500+" → 500.0) |
+| **Suffix normalizer fix** | ✅ Fixed | _standardize_company_suffix no longer uppercases Inc/Corp |
 | **Backend test fixtures** | ✅ Complete | messy_contacts.csv, messy_products.json, messy_invoices.xml |
-| **Backend test suite** | ✅ Scaffolded | Unit: detector, parser, normalizers, executor, sampling. Integration: pipeline + API |
+| **Backend test suite** | ✅ All passing | 104/104 — unit: detector, parser, normalizers, executor, sampling; integration: pipeline + API |
+
+### E2E API contract tests
+
+| Suite | Tests | Status |
+|-------|-------|--------|
+| Health + CORS | 3 | ✅ |
+| Ingest (CSV/JSON/XML/errors) | 16 | ✅ |
+| Clean pipeline + data contract | 17 | ✅ |
+| Export (CSV/JSON/XML/errors) | 13 | ✅ |
+| Job status | 4 | ✅ |
+| Frontend data contract | 15 | ✅ |
+| **Total** | **68** | ✅ |
 
 ### Infrastructure
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| **Docker Compose** | ✅ Complete | Postgres 16 + Redis 7 |
+| **Redis** | ✅ Running locally | brew-installed, port 6379, 24h job TTL |
+| **Docker Compose** | ✅ Available | Postgres 16 + Redis 7 (Docker not running locally — using native Redis) |
 | **GitHub repo** | ✅ Live | [github.com/delboyy/smelt](https://github.com/delboyy/smelt) |
-| **README** | ✅ Complete | Quick start, architecture, API reference, field type table, env vars |
-| **Context docs** | ✅ Complete | Full doc suite inherited from planning phase |
+| **Frontend — Vercel** | ✅ Deployed | https://frontend-m0lefzz6z-nathans-projects-6ed76785.vercel.app |
+| **Backend — Railway** | ⏳ Pending | `railway login` requires interactive terminal — run `cd backend && ./deploy.sh` |
+| **NEXT_PUBLIC_API_URL** | ⏳ Pending | Set via `vercel env add` once Railway URL is known |
+| **Custom domain (smelt.fyi)** | ⏳ Pending | Register on Namecheap, point to Vercel |
 
 ---
 
 ## What still needs to be done
 
-### P0 — Required to go live
+### P0 — Required to go live (remaining)
 
 | Task | Effort | Notes |
 |------|--------|-------|
-| **Wire frontend to backend API** | 2 days | Replace client-side cleaning engine calls with fetch to FastAPI endpoints. TanStack Query for loading/error states. |
-| **File upload to server** | 1 day | Frontend FileDropzone currently processes files client-side. Needs multipart POST to /api/v1/ingest. Add file size limits + progress bar. |
-| **Persistent job store** | 1 day | Replace `_jobs` dict with Redis (or Postgres). Jobs currently lost on server restart. |
-| **Register smelt.fyi domain** | 5 min | $6.98/yr on Namecheap. Do immediately. |
-| **Deploy backend** | 1 day | Railway, Render, or Fly.io. Add `ANTHROPIC_API_KEY` env var in prod. |
-| **Deploy frontend** | 2 hours | Vercel. Set `NEXT_PUBLIC_API_URL` to deployed backend. |
-| **ANTHROPIC_API_KEY in .env** | 5 min | Backend planner falls back to rule-based spec without it — works but less intelligent. |
+| **Deploy backend to Railway** | 30 min | Run `cd backend && ./deploy.sh` — needs interactive login |
+| **Set NEXT_PUBLIC_API_URL** | 5 min | `vercel env add NEXT_PUBLIC_API_URL production` then redeploy |
+| **Register smelt.fyi** | 5 min | $6.98/yr on Namecheap. Do immediately. |
+| **ANTHROPIC_API_KEY in Railway** | 5 min | Set via Railway dashboard or CLI during deploy |
 
 ### P1 — Core product quality
 
@@ -99,7 +111,6 @@
 | **Stripe billing** | 2 days | Free / $59 Pro. Usage tracking. Overage for large datasets. |
 | **Error boundaries** | 1 day | React error boundaries on each step. Graceful fallback UI. |
 | **Accessibility audit** | 1 day | ARIA labels, keyboard nav, screen reader support. |
-| **Backend test coverage** | 2 days | Run pytest, fix failures, add missing cases for executor + integration tests. |
 
 ### P2 — Growth features
 
@@ -125,22 +136,19 @@
 
 ## Known limitations (current state)
 
-1. **Frontend ↔ backend not connected** — The frontend runs the full cleaning pipeline client-side in the browser. The FastAPI backend exists and is complete but isn't wired up yet.
-2. **In-memory job store** — Backend `_jobs` dict is lost on restart. Not suitable for production.
+1. **Backend not deployed yet** — Railway deploy requires interactive login. Run `cd backend && ./deploy.sh`.
+2. **Frontend points to localhost** — `NEXT_PUBLIC_API_URL` not set on Vercel yet. Set after Railway deploy.
 3. **No auth** — No user accounts, no job history, no API keys.
-4. **No deployment** — Runs locally only. Not accessible at smelt.fyi yet.
-5. **No fuzzy dedup** — Exact-match only. Fuzzy matching requires backend.
-6. **No Excel support** — .xlsx not yet implemented.
-7. **Date ambiguity** — "01/02/2023" defaults to MM/DD/YYYY (US). No locale awareness.
-8. **No large file support** — Browser memory limits client-side to ~50k rows.
-9. **Backend tests need a run** — Scaffolded but not confirmed passing end-to-end yet.
+4. **No Excel support** — .xlsx not yet implemented.
+5. **Date ambiguity** — "01/02/2023" defaults to MM/DD/YYYY (US). No locale awareness.
+6. **No large file support** — Browser posts full file to server; memory cap at ~50MB.
+7. **No fuzzy dedup** — Exact-match only. Fuzzy matching requires rapidfuzz on backend.
 
 ---
 
 ## Technical debt
 
-- Backend `_jobs` is an in-memory dict — replace with Redis before any multi-instance deploy
-- Frontend cleaning engine duplicates some logic that now exists in the backend executor — once frontend is wired to API, client-side engine can be retired
+- Frontend client-side cleaning engine (`lib/cleaning/engine.ts`) now duplicates backend executor logic — can be retired once the API is the sole pipeline
 - No React error boundaries yet
 - No accessibility audit
 - `next-env.d.ts` is auto-generated by Next.js and should not be manually edited
@@ -161,16 +169,5 @@
 | 2026-04-20 | Data processing: Polars | 10-100x faster than pandas, lower memory, Rust-based. Scales to millions of rows. |
 | 2026-04-20 | Port: 3002 | Port 3000/3001/3004 used by other local projects. |
 | 2026-04-20 | Phase 1 scope: client-side first | Built full working product in the browser before wiring to backend. Validates UX before infra investment. |
-
----
-
-## Timeline (from here)
-
-```
-Week 1:   Wire frontend → backend, deploy to Railway + Vercel, register smelt.fyi
-Week 2:   Auth (email + Google), landing page, Stripe billing
-Week 3:   Salesforce + HubSpot integrations, Celery async workers
-Week 4:   Fuzzy dedup, recipe system, accessibility audit
-Week 5:   ProductHunt launch prep, SEO content, beta outreach
-Week 6:   Launch 🚀
-```
+| 2026-04-21 | Job store: Redis | 24h TTL, smelt:job:{id} keys, graceful in-memory fallback. Survives server restarts. |
+| 2026-04-21 | Deploy: Vercel (FE) + Railway (BE) | Vercel = zero-config Next.js. Railway = simple Docker/Nixpacks deploy with managed Redis addon. |

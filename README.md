@@ -82,7 +82,8 @@ cd backend && NEXTAUTH_SECRET=test pytest tests/ -q
 | `/login` | Login + signup (credentials or Google OAuth) |
 | `/app` | Data cleaning tool (file · paste · URL ingest) |
 | `/app/history` | Cleaning history dashboard |
-| `/app/settings` | API key management |
+| `/app/settings` | API key management + Slack integration |
+| `/report/[token]` | Public shareable cleaning report (no auth) |
 
 ## Project structure
 
@@ -165,8 +166,13 @@ Smelt auto-detects and normalizes 12 field types:
 | `POST` | `/api/v1/clean` | Run cleaning pipeline on a job |
 | `POST` | `/api/v1/export` | Stream cleaned data (CSV/JSON/XML) |
 | `GET` | `/api/v1/job/{id}` | Get job status |
-| `POST` | `/api/v1/ingest/url` | Fetch + ingest from public URL |
+| `POST` | `/api/v1/ingest/url` | Fetch + ingest from public URL (SSRF-safe) |
+| `POST` | `/api/v1/preview-plan` | Smart suggestions before cleaning |
 | `GET` | `/api/v1/jobs` | Paginated cleaning history |
+| `POST` | `/api/v1/jobs/{id}/share` | Create 30-day shareable report link |
+| `GET` | `/api/v1/reports/{token}` | Public report (metadata only) |
+| `GET` | `/api/v1/integrations/slack/connect` | Start Slack OAuth |
+| `GET` | `/api/v1/integrations/slack/status` | Slack connection status |
 | `POST` | `/api/v1/auth/register` | Create account |
 | `POST` | `/api/v1/auth/login` | Login → JWT |
 | `GET` | `/api/v1/auth/api-keys` | List API keys |

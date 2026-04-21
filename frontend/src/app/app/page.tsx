@@ -11,6 +11,7 @@ import { FormatBadge } from "@/components/ingest/FormatBadge";
 import { QualityScore } from "@/components/ui/QualityScore";
 import { SchemaDisplay } from "@/components/preview/SchemaDisplay";
 import { DataPreview } from "@/components/preview/DataPreview";
+import { SuggestionsPanel } from "@/components/preview/SuggestionsPanel";
 import { CleaningProgress } from "@/components/clean/CleaningProgress";
 import { StatsDashboard } from "@/components/review/StatsDashboard";
 import { IssueFilters } from "@/components/review/IssueFilters";
@@ -25,8 +26,8 @@ import { useSmeltStore } from "@/lib/store";
 import type { FieldType } from "@/lib/detection/schema";
 import type { Issue, CleaningStats } from "@/lib/cleaning/engine";
 import { toCSV, toJSON, toXML } from "@/lib/export/formatters";
-import { ingestFile, ingestRaw, ingestUrl, cleanJob, downloadExport } from "@/lib/api";
-import type { IngestResponse, CleanResponse } from "@/lib/api";
+import { ingestFile, ingestRaw, ingestUrl, cleanJob, downloadExport, fetchPreviewPlan, createShareLink } from "@/lib/api";
+import type { IngestResponse, CleanResponse, Suggestion } from "@/lib/api";
 import { T } from "@/lib/constants";
 
 const CHANGE_TYPE_MAP: Record<string, Issue["type"]> = {
@@ -95,20 +96,40 @@ export default function SmeltApp() {
   const [cleanedRecordCount, setCleanedRecordCount] = useState(0);
   const [ingestTab, setIngestTab] = useState<"file" | "paste" | "url">("file");
 
-  const { qualityScoreBefore, qualityScoreAfter, setQualityScoreBefore, setQualityScoreAfter } = useSmeltStore();
+  const {
+    qualityScoreBefore, qualityScoreAfter, setQualityScoreBefore, setQualityScoreAfter,
+    suggestions, setSuggestions, originalRecords, setOriginalRecords,
+  } = useSmeltStore();
+
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
+  const [compareMode, setCompareMode] = useState<"cleaned" | "original">("cleaned");
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
 
   const applyIngestResponse = useCallback(
-    (data: IngestResponse) => {
+    async (data: IngestResponse) => {
       const { schema: s, parsed: p, format: f } = mapIngestResponse(data);
       setJobId(data.job_id);
       setFormat(f);
       setParsed(p);
       setSchema(s);
+      setOriginalRecords(p);
       if (data.quality_score) setQualityScoreBefore(data.quality_score);
       setQualityScoreAfter(null);
+      setSuggestions([]);
       setStep("Preview");
+      // Fetch suggestions in background
+      setSuggestionsLoading(true);
+      try {
+        const plan = await fetchPreviewPlan(data.job_id);
+        setSuggestions(plan.suggestions);
+      } catch {
+        // suggestions are informational — don't surface errors
+      } finally {
+        setSuggestionsLoading(false);
+      }
     },
-    [setJobId, setFormat, setParsed, setSchema, setStep, setQualityScoreBefore, setQualityScoreAfter]
+    [setJobId, setFormat, setParsed, setSchema, setStep, setQualityScoreBefore, setQualityScoreAfter, setSuggestions, setOriginalRecords]
   );
 
   const processFile = useCallback(
@@ -117,7 +138,7 @@ export default function SmeltApp() {
       setLoading(true);
       try {
         const data = await ingestFile(file);
-        applyIngestResponse(data);
+        await applyIngestResponse(data);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Upload failed");
       } finally {
@@ -134,7 +155,7 @@ export default function SmeltApp() {
       setLoading(true);
       try {
         const data = await ingestRaw(text);
-        applyIngestResponse(data);
+        await applyIngestResponse(data);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Processing failed");
       } finally {
@@ -150,7 +171,7 @@ export default function SmeltApp() {
       setLoading(true);
       try {
         const data = await ingestUrl(url);
-        applyIngestResponse(data);
+        await applyIngestResponse(data);
       } catch (e) {
         setError(e instanceof Error ? e.message : "URL fetch failed");
       } finally {
@@ -178,6 +199,25 @@ export default function SmeltApp() {
       setLoading(false);
     }
   }, [jobId, setError, setLoading, setStep, setResult]);
+
+  const handleShare = useCallback(async () => {
+    if (!jobId) return;
+    setSharing(true);
+    try {
+      const { token } = await createShareLink(jobId);
+      const url = `${window.location.origin}/report/${token}`;
+      setShareUrl(url);
+      await navigator.clipboard?.writeText(url);
+    } catch {
+      // ignore
+    } finally {
+      setSharing(false);
+    }
+  }, [jobId]);
+
+  const toggleSuggestion = useCallback((id: string) => {
+    setSuggestions(suggestions.map((s: Suggestion) => s.id === id ? { ...s, enabled: !s.enabled } : s));
+  }, [suggestions, setSuggestions]);
 
   const handleDownload = useCallback(async () => {
     if (jobId) {
@@ -359,6 +399,11 @@ export default function SmeltApp() {
               <QualityScore score={qualityScoreBefore} label="Data health — before cleaning" />
             )}
             <SchemaDisplay schema={schema} />
+            <SuggestionsPanel
+              suggestions={suggestions}
+              onToggle={toggleSuggestion}
+              loading={suggestionsLoading}
+            />
             <DataPreview records={parsed} schema={schema} />
 
             <div style={{ display: "flex", gap: "10px", marginTop: "18px" }}>
@@ -418,23 +463,55 @@ export default function SmeltApp() {
             <IssueFilters issues={result.issues} activeFilter={issueFilter} onFilter={setIssueFilter} />
             <ChangeLog issues={filteredIssues} />
 
+            {/* Before / After toggle */}
             <div style={{ marginBottom: "18px" }}>
-              <div
-                style={{
-                  fontSize: "11px",
-                  color: T.text3,
-                  letterSpacing: "1px",
-                  textTransform: "uppercase",
-                  marginBottom: "10px",
-                }}
-              >
-                Preview (first 10 records)
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <div style={{ fontSize: "11px", color: T.text3, letterSpacing: "1px", textTransform: "uppercase" }}>
+                  {compareMode === "cleaned" ? "Cleaned data" : "Original data"} (first 10 records)
+                </div>
+                {originalRecords.length > 0 && (
+                  <div style={{ display: "flex", background: T.surface, border: `1px solid ${T.border}`, borderRadius: "6px", padding: "2px" }}>
+                    {(["cleaned", "original"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        onClick={() => setCompareMode(mode)}
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: "5px",
+                          border: "none",
+                          background: compareMode === mode ? T.accentBg : "transparent",
+                          color: compareMode === mode ? T.accent : T.text3,
+                          fontSize: "11px",
+                          fontWeight: compareMode === mode ? 700 : 400,
+                          cursor: "pointer",
+                          fontFamily: "'DM Sans', sans-serif",
+                        }}
+                      >
+                        {mode === "cleaned" ? "Cleaned" : "Original"}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <DataTable records={result.cleaned} highlightSchema={result.schema} />
+              <DataTable
+                records={compareMode === "cleaned" ? result.cleaned : originalRecords.slice(0, 10)}
+                highlightSchema={result.schema}
+              />
             </div>
+
+            {/* Share report */}
+            {shareUrl ? (
+              <div style={{ background: T.greenBg, border: `1px solid ${T.greenBorder}`, borderRadius: "8px", padding: "12px 16px", marginBottom: "12px", display: "flex", alignItems: "center", gap: "10px", fontSize: "13px" }}>
+                <span style={{ color: T.green, flex: 1, fontFamily: "'DM Mono', monospace", fontSize: "12px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{shareUrl}</span>
+                <button onClick={() => setShareUrl(null)} style={{ background: "none", border: "none", color: T.text3, cursor: "pointer", fontSize: "11px", fontFamily: "'DM Sans', sans-serif" }}>✕</button>
+              </div>
+            ) : null}
 
             <div style={{ display: "flex", gap: "10px" }}>
               <Button onClick={() => { setStep("Preview"); setResult(null); }}>← Back</Button>
+              <Button onClick={handleShare} disabled={sharing} style={{ whiteSpace: "nowrap" }}>
+                {sharing ? "Sharing…" : shareUrl ? "Link copied!" : "Share report"}
+              </Button>
               <Button primary onClick={() => setStep("Export")} style={{ flex: 1 }}>
                 Export clean data →
               </Button>

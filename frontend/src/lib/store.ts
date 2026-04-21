@@ -4,7 +4,7 @@ import { create } from "zustand";
 import type { Step } from "./constants";
 import type { FieldType } from "./detection/schema";
 import type { CleaningResult } from "./cleaning/engine";
-import type { QualityScore } from "./api";
+import type { QualityScore, Suggestion } from "./api";
 
 type SmeltState = {
   step: Step;
@@ -18,6 +18,8 @@ type SmeltState = {
   dragOver: boolean;
   qualityScoreBefore: QualityScore | null;
   qualityScoreAfter: QualityScore | null;
+  suggestions: Suggestion[];
+  originalRecords: Record<string, unknown>[];
 
   // Backend API state
   jobId: string | null;
@@ -39,6 +41,8 @@ type SmeltState = {
   setError: (error: string | null) => void;
   setQualityScoreBefore: (score: QualityScore | null) => void;
   setQualityScoreAfter: (score: QualityScore | null) => void;
+  setSuggestions: (suggestions: Suggestion[]) => void;
+  setOriginalRecords: (records: Record<string, unknown>[]) => void;
   reset: () => void;
 };
 
@@ -54,6 +58,8 @@ const initialState = {
   dragOver: false,
   qualityScoreBefore: null as QualityScore | null,
   qualityScoreAfter: null as QualityScore | null,
+  suggestions: [] as Suggestion[],
+  originalRecords: [] as Record<string, unknown>[],
   jobId: null as string | null,
   isLoading: false,
   loadingMessage: "",
@@ -77,5 +83,7 @@ export const useSmeltStore = create<SmeltState>((set) => ({
   setError: (error) => set({ error }),
   setQualityScoreBefore: (qualityScoreBefore) => set({ qualityScoreBefore }),
   setQualityScoreAfter: (qualityScoreAfter) => set({ qualityScoreAfter }),
+  setSuggestions: (suggestions) => set({ suggestions }),
+  setOriginalRecords: (originalRecords) => set({ originalRecords }),
   reset: () => set({ ...initialState }),
 }));

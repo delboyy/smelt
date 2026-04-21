@@ -6,6 +6,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.api import ingest, clean, export, jobs
 from app.api import auth as auth_api
+from app.api import plan as plan_api
+from app.api import reports as reports_api
+from app.api import integrations as integrations_api
 from app.core.database import init_db
 import app.models.api_key  # noqa: F401 — ensures ApiKey table is registered with Base.metadata
 
@@ -48,6 +51,9 @@ app.include_router(clean.router, prefix="/api/v1", tags=["clean"])
 app.include_router(export.router, prefix="/api/v1", tags=["export"])
 app.include_router(jobs.router, prefix="/api/v1", tags=["jobs"])
 app.include_router(auth_api.router, prefix="/api/v1", tags=["auth"])
+app.include_router(plan_api.router, prefix="/api/v1", tags=["plan"])
+app.include_router(reports_api.router, prefix="/api/v1", tags=["reports"])
+app.include_router(integrations_api.router, prefix="/api/v1", tags=["integrations"])
 
 
 @app.get("/health")

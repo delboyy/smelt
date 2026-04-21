@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { T } from "@/lib/constants";
-import { fetchApiKeys, createApiKey, revokeApiKey } from "@/lib/api";
-import type { ApiKeyEntry } from "@/lib/api";
+import { fetchApiKeys, createApiKey, revokeApiKey, fetchSlackStatus, connectSlack, disconnectSlack } from "@/lib/api";
+import type { ApiKeyEntry, SlackStatus } from "@/lib/api";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -52,6 +52,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
 
   // Get JWT token from session
   const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
@@ -60,8 +61,10 @@ export default function SettingsPage() {
     if (status === "unauthenticated") router.push("/login?callbackUrl=/app/settings");
     if (status === "authenticated" && token) {
       setLoading(true);
-      fetchApiKeys(token)
-        .then(setKeys)
+      Promise.all([
+        fetchApiKeys(token).then(setKeys),
+        fetchSlackStatus(token).then(setSlackStatus).catch(() => {}),
+      ])
         .catch((e) => setError(e.message))
         .finally(() => setLoading(false));
     }
@@ -143,6 +146,54 @@ export default function SettingsPage() {
                 Free
               </span>
             </div>
+          </div>
+        </section>
+
+        {/* Integrations */}
+        <section style={{ marginBottom: "32px" }}>
+          <h2 style={{ fontSize: "14px", fontWeight: 600, color: T.text2, margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+            Integrations
+          </h2>
+          <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: "10px", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              {/* Slack logo */}
+              <div style={{ width: "32px", height: "32px", borderRadius: "8px", background: "#4A154B", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>
+                💬
+              </div>
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: T.text1 }}>Slack</div>
+                <div style={{ fontSize: "12px", color: T.text3 }}>
+                  {slackStatus?.connected
+                    ? `Connected · posting to #${slackStatus.channel ?? "general"}`
+                    : "Get notified when cleaning completes"}
+                </div>
+              </div>
+            </div>
+            {slackStatus?.connected ? (
+              <button
+                onClick={async () => {
+                  await disconnectSlack(token);
+                  setSlackStatus({ connected: false, channel: null });
+                }}
+                style={{ padding: "6px 14px", borderRadius: "6px", border: `1px solid ${T.border}`, background: "transparent", color: T.text2, fontSize: "12px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
+              >
+                Disconnect
+              </button>
+            ) : (
+              <button
+                onClick={async () => {
+                  try {
+                    const { auth_url } = await connectSlack(token);
+                    window.open(auth_url, "_blank");
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : "Slack not configured");
+                  }
+                }}
+                style={{ padding: "6px 14px", borderRadius: "6px", border: "none", background: "#4A154B", color: "#fff", fontSize: "12px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}
+              >
+                Connect Slack
+              </button>
+            )}
           </div>
         </section>
 

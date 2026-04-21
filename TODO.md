@@ -143,7 +143,30 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
 
 ---
 
-## 7. Twitter/X Account
+## 7. Slack Integration (for "notify on clean complete" feature)
+
+The Slack integration code is built. To activate it:
+
+1. Go to → https://api.slack.com/apps → Create New App → From Scratch
+2. App name: **Smelt**, workspace: your Slack workspace
+3. OAuth & Permissions → Redirect URLs → Add:
+   `https://smelt-0vgv.onrender.com/api/v1/integrations/slack/callback`
+4. Scopes → Bot Token Scopes → Add: `chat:write`, `channels:read`, `groups:read`
+5. Install to Workspace → copy **Bot User OAuth Token** (`xoxb-...`)
+6. Basic Information → App Credentials → copy **Client ID** and **Client Secret**
+
+**Add to Render:**
+```
+SLACK_CLIENT_ID=...
+SLACK_CLIENT_SECRET=...
+SLACK_REDIRECT_URI=https://smelt-0vgv.onrender.com/api/v1/integrations/slack/callback
+```
+
+After setting env vars, users can connect Slack from `/app/settings`.
+
+---
+
+## 8. Twitter/X Account
 
 1. Go to → https://x.com/i/flow/signup
 2. Username: `@smeltfyi`
@@ -151,7 +174,7 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
 
 ---
 
-## 8. Custom Domain for Backend API (optional but cleaner)
+## 9. Custom Domain for Backend API (optional but cleaner)
 
 Currently the backend is at `https://smelt-0vgv.onrender.com`.
 If you want `https://api.smelt.fyi`:
@@ -178,4 +201,5 @@ If you want `https://api.smelt.fyi`:
 - [ ] Google OAuth env vars set in Vercel
 - [ ] Frontend redeployed after env var changes
 - [ ] Auth tested: register, login, logout
+- [ ] Slack app created + `SLACK_CLIENT_ID` / `SLACK_CLIENT_SECRET` set in Render
 - [ ] Stripe setup (when ready for billing)

@@ -141,6 +141,82 @@ export async function downloadExport(jobId: string, format: string): Promise<voi
   URL.revokeObjectURL(url);
 }
 
+export interface Suggestion {
+  id: string;
+  action: string;
+  field?: string;
+  label: string;
+  description: string;
+  affected_rows: number;
+  enabled: boolean;
+  category: "dedup" | "nullify" | "normalize";
+}
+
+export interface PlanResponse {
+  job_id: string;
+  suggestions: Suggestion[];
+  total: number;
+}
+
+export interface ReportData {
+  job_id: string;
+  filename: string;
+  format: string;
+  record_count_in: number;
+  record_count_out: number | null;
+  duplicates_removed: number;
+  fields_normalized: number;
+  nulls_set: number;
+  quality_before?: QualityScore;
+  quality_after?: QualityScore;
+  expires_at: string;
+}
+
+export interface SlackStatus {
+  connected: boolean;
+  channel: string | null;
+}
+
+export async function fetchPreviewPlan(jobId: string): Promise<PlanResponse> {
+  const res = await fetch(`${API_URL}/api/v1/preview-plan`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ job_id: jobId }),
+  });
+  return handleResponse<PlanResponse>(res);
+}
+
+export async function createShareLink(jobId: string): Promise<{ token: string; expires_at: string }> {
+  const res = await fetch(`${API_URL}/api/v1/jobs/${jobId}/share`, { method: "POST" });
+  return handleResponse(res);
+}
+
+export async function fetchReport(token: string): Promise<ReportData> {
+  const res = await fetch(`${API_URL}/api/v1/reports/${token}`);
+  return handleResponse<ReportData>(res);
+}
+
+export async function fetchSlackStatus(token: string): Promise<SlackStatus> {
+  const res = await fetch(`${API_URL}/api/v1/integrations/slack/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<SlackStatus>(res);
+}
+
+export async function connectSlack(token: string): Promise<{ auth_url: string }> {
+  const res = await fetch(`${API_URL}/api/v1/integrations/slack/connect`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse(res);
+}
+
+export async function disconnectSlack(token: string): Promise<void> {
+  await fetch(`${API_URL}/api/v1/integrations/slack/disconnect`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 export async function fetchJobs(page = 1, limit = 20): Promise<JobsResponse> {
   const res = await fetch(`${API_URL}/api/v1/jobs?page=${page}&limit=${limit}`);
   return handleResponse<JobsResponse>(res);

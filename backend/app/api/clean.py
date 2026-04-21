@@ -10,6 +10,8 @@ from app.core.validator import validate_spec
 from app.core.executor import execute_transforms
 from app.core.auditor import build_audit_summary
 from app.core.quality_scorer import calculate_data_quality_score
+from app.core.notifications import notify_slack
+from app.api.integrations import _slack_tokens
 from app.models.schemas import CleanRequest
 
 router = APIRouter()
@@ -57,13 +59,36 @@ async def clean_data(request: CleanRequest) -> JSONResponse:
     schema = job.get("schema", {})
     quality = calculate_data_quality_score(cleaned, schema)
 
+    stats_dict = stats.model_dump()
     update_job(request.job_id, {
         "status": "cleaned",
         "cleaned": cleaned,
         "spec": spec.model_dump(mode="json", by_alias=True),
         "audit": [e.model_dump(mode="json") for e in audit_entries],
         "quality_score_after": quality,
+        "stats": stats_dict,
     })
+
+    # Fire Slack notification if connected (best-effort)
+    try:
+        user_id = None  # No user_id in current clean flow — placeholder for future auth
+        if user_id and user_id in _slack_tokens:
+            slack_info = _slack_tokens[user_id]
+            import asyncio
+            asyncio.create_task(notify_slack(
+                token=slack_info["token"],
+                channel=slack_info.get("channel_id", "general"),
+                filename=job.get("filename", "data"),
+                records_in=stats.records_in,
+                records_out=stats.records_out,
+                duplicates_removed=stats.duplicates_removed,
+                fields_normalized=stats.fields_normalized,
+                job_id=request.job_id,
+                quality_before=job.get("quality_score_before"),
+                quality_after=quality,
+            ))
+    except Exception:
+        pass
 
     return JSONResponse(
         content={

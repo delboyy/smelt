@@ -132,7 +132,7 @@ def _apply_action(
         )
 
     if action == "extract_digits":
-        return df.with_columns(col.str.replace_all(r"[^\d+]", "").alias(field))
+        return df.with_columns(col.str.replace_all(r"[^\d]", "").alias(field))
 
     if action == "format_phone":
         return df.with_columns(

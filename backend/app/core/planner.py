@@ -261,7 +261,7 @@ def _rule_based_spec(
         "currency_code": ["trim", "uppercase"],
         "status": ["trim", "lowercase", "map_values"],
         "category": ["trim", "normalize_category"],
-        "number": ["extract_digits", "parse_float"],
+        "number": ["parse_float"],
         "id": ["trim"],
         "text": ["trim", "collapse_whitespace"],
     }

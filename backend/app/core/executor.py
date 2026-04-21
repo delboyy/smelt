@@ -150,7 +150,7 @@ def _apply_action(
     if action == "parse_float":
         return df.with_columns(
             col.map_elements(
-                lambda v: str(float(v)) if v and _is_numeric(v) else None,
+                lambda v: str(float(re.sub(r"[^\d.\-]", "", v))) if v and _is_numeric(v) else None,
                 return_dtype=pl.String,
             ).alias(field)
         )
@@ -158,7 +158,7 @@ def _apply_action(
     if action == "parse_int":
         return df.with_columns(
             col.map_elements(
-                lambda v: str(int(float(v))) if v and _is_numeric(v) else None,
+                lambda v: str(int(float(re.sub(r"[^\d.\-]", "", v)))) if v and _is_numeric(v) else None,
                 return_dtype=pl.String,
             ).alias(field)
         )
@@ -278,7 +278,7 @@ def _standardize_company_suffix(v: Optional[str]) -> Optional[str]:
     v = re.sub(r"\b(corporation|incorporated)\b\.?$", "Inc", v, flags=re.I)
     v = re.sub(r"\bcorp\.?$", "Corp", v, flags=re.I)
     return " ".join(
-        w.upper() if w.lower() in ("llc", "llp", "ltd", "inc", "corp", "co", "plc") else w
+        w.upper() if w.lower() in ("llc", "llp", "ltd", "co", "plc") else w
         for w in v.split()
     )
 

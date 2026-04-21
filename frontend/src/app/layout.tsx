@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "Smelt — Raw data in. Pure data out.",
@@ -16,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body style={{ backgroundColor: "#09090b", color: "#fafafa", minHeight: "100vh" }}>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -16,6 +16,12 @@ type SmeltState = {
   issueFilter: string;
   dragOver: boolean;
 
+  // Backend API state
+  jobId: string | null;
+  isLoading: boolean;
+  loadingMessage: string;
+  error: string | null;
+
   setStep: (step: Step) => void;
   setRawData: (data: string) => void;
   setFormat: (format: string) => void;
@@ -25,6 +31,9 @@ type SmeltState = {
   setExportFormat: (fmt: string) => void;
   setIssueFilter: (filter: string) => void;
   setDragOver: (over: boolean) => void;
+  setJobId: (id: string | null) => void;
+  setLoading: (loading: boolean, message?: string) => void;
+  setError: (error: string | null) => void;
   reset: () => void;
 };
 
@@ -38,6 +47,10 @@ const initialState = {
   exportFormat: "CSV",
   issueFilter: "all",
   dragOver: false,
+  jobId: null as string | null,
+  isLoading: false,
+  loadingMessage: "",
+  error: null as string | null,
 };
 
 export const useSmeltStore = create<SmeltState>((set) => ({
@@ -52,5 +65,8 @@ export const useSmeltStore = create<SmeltState>((set) => ({
   setExportFormat: (exportFormat) => set({ exportFormat }),
   setIssueFilter: (issueFilter) => set({ issueFilter }),
   setDragOver: (dragOver) => set({ dragOver }),
+  setJobId: (jobId) => set({ jobId }),
+  setLoading: (isLoading, loadingMessage = "") => set({ isLoading, loadingMessage }),
+  setError: (error) => set({ error }),
   reset: () => set({ ...initialState }),
 }));

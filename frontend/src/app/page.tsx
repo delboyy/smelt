@@ -20,15 +20,48 @@ import { ExportPreview } from "@/components/export/ExportPreview";
 import { DownloadButton } from "@/components/export/DownloadButton";
 import { CRMPushTeaser } from "@/components/export/CRMPushTeaser";
 import { useSmeltStore } from "@/lib/store";
-import { detectFormat } from "@/lib/detection/format";
-import { inferFieldType, type FieldType } from "@/lib/detection/schema";
-import { parseCSV } from "@/lib/parsers/csv";
-import { parseJSON } from "@/lib/parsers/json";
-import { parseXML } from "@/lib/parsers/xml";
-import { parseTSV } from "@/lib/parsers/tsv";
-import { cleanRecords } from "@/lib/cleaning/engine";
+import type { FieldType } from "@/lib/detection/schema";
+import type { Issue, CleaningStats } from "@/lib/cleaning/engine";
 import { toCSV, toJSON, toXML } from "@/lib/export/formatters";
+import { ingestFile, ingestRaw, cleanJob, downloadExport } from "@/lib/api";
+import type { IngestResponse, CleanResponse } from "@/lib/api";
 import { T } from "@/lib/constants";
+
+const CHANGE_TYPE_MAP: Record<string, Issue["type"]> = {
+  normalized: "normalized",
+  duplicate: "duplicate",
+  missing: "missing",
+  invalid: "invalid",
+};
+
+function mapIngestResponse(data: IngestResponse) {
+  const schema: Record<string, FieldType> = {};
+  for (const [field, info] of Object.entries(data.schema)) {
+    schema[field] = info.detected_type as FieldType;
+  }
+  return { schema, parsed: data.preview, format: data.format };
+}
+
+function mapCleanResponse(data: CleanResponse) {
+  const issues: Issue[] = data.changes.map((c) => ({
+    row: c.row,
+    field: c.field,
+    was: c.original ?? "",
+    now: c.cleaned,
+    type: CHANGE_TYPE_MAP[c.change_type] ?? "normalized",
+    fieldType: "text" as FieldType,
+  }));
+
+  const stats: CleaningStats = {
+    total: data.stats.records_in,
+    clean: data.stats.records_out,
+    dupes: data.stats.duplicates_removed,
+    fixes: data.stats.fields_normalized,
+    nulls: data.stats.nulls_set,
+  };
+
+  return { issues, stats, cleaned: data.cleaned_preview, schema: {} as Record<string, FieldType> };
+}
 
 export default function SmeltApp() {
   const {
@@ -48,50 +81,101 @@ export default function SmeltApp() {
     issueFilter,
     setIssueFilter,
     setStep,
+    jobId,
+    setJobId,
+    isLoading,
+    setLoading,
+    error,
+    setError,
   } = useSmeltStore();
 
-  const [processingAnim, setProcessingAnim] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [cleanedRecordCount, setCleanedRecordCount] = useState(0);
 
-  const processRaw = useCallback(
-    (text: string) => {
-      setRawData(text);
-      const fmt = detectFormat(text);
-      setFormat(fmt);
-      let records: Record<string, unknown>[] = [];
-      try {
-        if (fmt === "JSON") records = parseJSON(text);
-        else if (fmt === "XML") records = parseXML(text) as Record<string, unknown>[];
-        else if (fmt === "CSV") records = parseCSV(text);
-        else if (fmt === "TSV") records = parseTSV(text);
-      } catch {
-        records = [];
-      }
-      if (records.length && typeof records[0] === "object") {
-        const keys = Object.keys(records[0]);
-        const s: Record<string, FieldType> = {};
-        keys.forEach((k) => {
-          s[k] = inferFieldType(k, records.map((r) => r[k]));
-        });
-        setSchema(s);
-      }
-      setParsed(records);
+  const applyIngestResponse = useCallback(
+    (data: IngestResponse) => {
+      const { schema: s, parsed: p, format: f } = mapIngestResponse(data);
+      setJobId(data.job_id);
+      setFormat(f);
+      setParsed(p);
+      setSchema(s);
       setStep("Preview");
     },
-    [setRawData, setFormat, setParsed, setSchema, setStep]
+    [setJobId, setFormat, setParsed, setSchema, setStep]
   );
 
-  const runClean = () => {
-    setProcessingAnim(true);
-    setTimeout(() => {
-      const r = cleanRecords(parsed);
-      setResult(r);
-      setStep("Review");
-      setProcessingAnim(false);
-    }, 1200);
-  };
+  const processFile = useCallback(
+    async (file: File) => {
+      setError(null);
+      setLoading(true);
+      try {
+        const data = await ingestFile(file);
+        applyIngestResponse(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Upload failed");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [applyIngestResponse, setError, setLoading]
+  );
 
-  const getExport = (): string => {
+  const processRaw = useCallback(
+    async (text: string) => {
+      setRawData(text);
+      setError(null);
+      setLoading(true);
+      try {
+        const data = await ingestRaw(text);
+        applyIngestResponse(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Processing failed");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setRawData, applyIngestResponse, setError, setLoading]
+  );
+
+  const runClean = useCallback(async () => {
+    if (!jobId) return;
+    setError(null);
+    setLoading(true);
+    setStep("Review");
+    try {
+      const data = await cleanJob(jobId);
+      const { issues, stats, cleaned, schema: s } = mapCleanResponse(data);
+      setCleanedRecordCount(data.stats.records_out);
+      setResult({ cleaned, issues, schema: s, stats });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Cleaning failed");
+      setStep("Preview");
+    } finally {
+      setLoading(false);
+    }
+  }, [jobId, setError, setLoading, setStep, setResult]);
+
+  const handleDownload = useCallback(async () => {
+    if (jobId) {
+      await downloadExport(jobId, exportFormat);
+    } else if (result) {
+      const content =
+        exportFormat === "JSON" ? toJSON(result.cleaned) :
+        exportFormat === "XML" ? toXML(result.cleaned) :
+        toCSV(result.cleaned);
+      const ext = exportFormat.toLowerCase();
+      const mime = ext === "json" ? "application/json" : ext === "xml" ? "application/xml" : "text/csv";
+      const blob = new Blob([content], { type: mime });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `smelted_data.${ext}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  }, [jobId, exportFormat, result]);
+
+  const getExportPreview = (): string => {
     if (!result) return "";
     if (exportFormat === "JSON") return toJSON(result.cleaned);
     if (exportFormat === "CSV") return toCSV(result.cleaned);
@@ -146,25 +230,60 @@ export default function SmeltApp() {
               Any format. We&apos;ll detect it, clean it, and hand it back pure.
             </p>
 
-            <FileDropzone onData={processRaw} />
-
-            <div style={dividerStyle}>
-              <div style={{ flex: 1, height: "1px", background: T.border }} />
-              <span
+            {error && (
+              <div
                 style={{
-                  fontSize: "11px",
-                  color: T.text3,
-                  letterSpacing: "1px",
-                  textTransform: "uppercase",
+                  background: T.redBg,
+                  border: `1px solid ${T.redBorder}`,
+                  borderRadius: "8px",
+                  padding: "12px 16px",
+                  marginBottom: "16px",
+                  fontSize: "13px",
+                  color: T.red,
                 }}
               >
-                or paste raw data
-              </span>
-              <div style={{ flex: 1, height: "1px", background: T.border }} />
-            </div>
+                {error}
+              </div>
+            )}
 
-            <PasteInput onProcess={() => rawData.trim() && processRaw(rawData)} />
-            <SampleButtons onSelect={processRaw} />
+            {isLoading ? (
+              <div style={{ textAlign: "center", padding: "48px 0", color: T.text3, fontSize: "14px" }}>
+                <div
+                  style={{
+                    width: "32px",
+                    height: "32px",
+                    borderRadius: "50%",
+                    border: `2px solid ${T.border}`,
+                    borderTopColor: T.accent,
+                    margin: "0 auto 12px",
+                    animation: "smeltSpin 0.8s linear infinite",
+                  }}
+                />
+                Uploading...
+              </div>
+            ) : (
+              <>
+                <FileDropzone onFile={processFile} />
+
+                <div style={dividerStyle}>
+                  <div style={{ flex: 1, height: "1px", background: T.border }} />
+                  <span
+                    style={{
+                      fontSize: "11px",
+                      color: T.text3,
+                      letterSpacing: "1px",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    or paste raw data
+                  </span>
+                  <div style={{ flex: 1, height: "1px", background: T.border }} />
+                </div>
+
+                <PasteInput onProcess={() => rawData.trim() && processRaw(rawData)} />
+                <SampleButtons onSelect={processRaw} />
+              </>
+            )}
           </div>
         )}
 
@@ -202,7 +321,7 @@ export default function SmeltApp() {
             <DataPreview records={parsed} schema={schema} />
 
             <div style={{ display: "flex", gap: "10px", marginTop: "18px" }}>
-              <Button onClick={() => setStep("Ingest")}>← Back</Button>
+              <Button onClick={() => { setStep("Ingest"); setError(null); }}>← Back</Button>
               <Button primary onClick={runClean} style={{ flex: 1 }}>
                 Smelt this data →
               </Button>
@@ -211,10 +330,30 @@ export default function SmeltApp() {
         )}
 
         {/* CLEANING ANIMATION */}
-        {step === "Review" && processingAnim && <CleaningProgress />}
+        {step === "Review" && isLoading && <CleaningProgress />}
+
+        {/* REVIEW ERROR */}
+        {step === "Review" && !isLoading && error && (
+          <div className="animate-smelt-fade-in">
+            <div
+              style={{
+                background: T.redBg,
+                border: `1px solid ${T.redBorder}`,
+                borderRadius: "8px",
+                padding: "16px",
+                fontSize: "13px",
+                color: T.red,
+                marginBottom: "16px",
+              }}
+            >
+              {error}
+            </div>
+            <Button onClick={() => { setStep("Preview"); setError(null); }}>← Back</Button>
+          </div>
+        )}
 
         {/* REVIEW */}
-        {step === "Review" && !processingAnim && result && (
+        {step === "Review" && !isLoading && !error && result && (
           <div className="animate-smelt-fade-in">
             <h1
               style={{ fontSize: "24px", fontWeight: 700, letterSpacing: "-0.5px", margin: "0 0 6px" }}
@@ -222,10 +361,10 @@ export default function SmeltApp() {
               Cleaning report
             </h1>
             <p style={{ color: T.text2, fontSize: "13px", margin: "0 0 20px" }}>
-              {result.issues.length} changes made · {result.cleaned.length} clean records ready
+              {result.issues.length} changes made · {cleanedRecordCount || result.cleaned.length} clean records ready
             </p>
 
-            <StatsDashboard stats={result.stats} cleanCount={result.cleaned.length} />
+            <StatsDashboard stats={result.stats} cleanCount={cleanedRecordCount || result.cleaned.length} />
             <IssueFilters issues={result.issues} activeFilter={issueFilter} onFilter={setIssueFilter} />
             <ChangeLog issues={filteredIssues} />
 
@@ -239,7 +378,7 @@ export default function SmeltApp() {
                   marginBottom: "10px",
                 }}
               >
-                Cleaned data
+                Preview (first 10 records)
               </div>
               <DataTable records={result.cleaned} highlightSchema={result.schema} />
             </div>
@@ -262,7 +401,7 @@ export default function SmeltApp() {
               Export
             </h1>
             <p style={{ color: T.text2, fontSize: "13px", margin: "0 0 24px" }}>
-              {result.cleaned.length} clean records ready to go.
+              {cleanedRecordCount || result.cleaned.length} clean records ready to go.
             </p>
 
             <FormatPicker
@@ -270,16 +409,16 @@ export default function SmeltApp() {
               onSelect={(f) => { setExportFormat(f); setCopied(false); }}
             />
             <ExportPreview
-              content={getExport()}
+              content={getExportPreview()}
               format={exportFormat}
-              recordCount={result.cleaned.length}
+              recordCount={cleanedRecordCount || result.cleaned.length}
             />
 
             <div style={{ display: "flex", gap: "10px" }}>
               <Button onClick={() => setStep("Review")}>← Back</Button>
               <Button
                 onClick={() => {
-                  navigator.clipboard?.writeText(getExport());
+                  navigator.clipboard?.writeText(getExportPreview());
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
                 }}
@@ -288,9 +427,9 @@ export default function SmeltApp() {
                   color: copied ? T.green : T.text2,
                 }}
               >
-                {copied ? "Copied!" : "Copy"}
+                {copied ? "Copied!" : "Copy preview"}
               </Button>
-              <DownloadButton content={getExport()} format={exportFormat} />
+              <DownloadButton format={exportFormat} onDownload={handleDownload} />
             </div>
 
             <CRMPushTeaser exportFormat={exportFormat} />

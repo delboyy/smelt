@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from app.api.ingest import get_jobs
+from app.core.job_store import get_job
 
 router = APIRouter()
 
@@ -10,13 +10,12 @@ router = APIRouter()
 @router.get("/job/{job_id}")
 async def get_job_status(job_id: str) -> JSONResponse:
     """Get the status of a cleaning or export job."""
-    jobs = get_jobs()
-    if job_id not in jobs:
+    job = get_job(job_id)
+    if job is None:
         raise HTTPException(
             status_code=404,
             detail={"error": {"code": "JOB_NOT_FOUND", "message": f"Job {job_id} not found"}},
         )
-    job = jobs[job_id]
     return JSONResponse(
         content={
             "job_id": job_id,

@@ -6,23 +6,22 @@ import io
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse, JSONResponse
 
-from app.api.ingest import get_jobs
+from app.core.job_store import get_job
 from app.models.schemas import ExportRequest
 
 router = APIRouter()
 
 
-@router.post("/export")
+@router.post("/export", response_model=None)
 async def export_data(request: ExportRequest) -> StreamingResponse | JSONResponse:
     """Export cleaned data in the requested format."""
-    jobs = get_jobs()
-    if request.job_id not in jobs:
+    job = get_job(request.job_id)
+    if job is None:
         raise HTTPException(
             status_code=404,
             detail={"error": {"code": "JOB_NOT_FOUND", "message": f"Job {request.job_id} not found"}},
         )
 
-    job = jobs[request.job_id]
     records = job.get("cleaned") or job.get("records", [])
 
     if not records:
@@ -38,7 +37,7 @@ async def export_data(request: ExportRequest) -> StreamingResponse | JSONRespons
         return StreamingResponse(
             iter([content]),
             media_type="application/json",
-            headers={"Content-Disposition": f"attachment; filename=smelted_data.json"},
+            headers={"Content-Disposition": "attachment; filename=smelted_data.json"},
         )
 
     if fmt == "xml":

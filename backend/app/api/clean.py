@@ -3,7 +3,7 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
-from app.api.ingest import get_jobs
+from app.core.job_store import get_job, update_job
 from app.core.sampling import stratified_sample
 from app.core.planner import generate_transform_spec
 from app.core.validator import validate_spec
@@ -17,14 +17,13 @@ router = APIRouter()
 @router.post("/clean")
 async def clean_data(request: CleanRequest) -> JSONResponse:
     """Run the hybrid AI cleaning pipeline on a previously ingested dataset."""
-    jobs = get_jobs()
-    if request.job_id not in jobs:
+    job = get_job(request.job_id)
+    if job is None:
         raise HTTPException(
             status_code=404,
             detail={"error": {"code": "JOB_NOT_FOUND", "message": f"Job {request.job_id} not found"}},
         )
 
-    job = jobs[request.job_id]
     if job["status"] not in ("parsed", "cleaned"):
         raise HTTPException(
             status_code=400,
@@ -46,7 +45,6 @@ async def clean_data(request: CleanRequest) -> JSONResponse:
 
     # Phase 3: Validate spec against sample
     validation = validate_spec(spec, sample)
-    # Warnings are logged but don't block execution
 
     # Phase 4: Execute deterministically with Polars (LLM NOT called again)
     cleaned, audit_entries = execute_transforms(records, spec)
@@ -54,18 +52,20 @@ async def clean_data(request: CleanRequest) -> JSONResponse:
     # Phase 5: Build audit summary
     stats = build_audit_summary(records, cleaned, audit_entries)
 
-    job["status"] = "cleaned"
-    job["cleaned"] = cleaned
-    job["spec"] = spec
-    job["audit"] = audit_entries
+    update_job(request.job_id, {
+        "status": "cleaned",
+        "cleaned": cleaned,
+        "spec": spec.model_dump(mode="json", by_alias=True),
+        "audit": [e.model_dump(mode="json") for e in audit_entries],
+    })
 
     return JSONResponse(
         content={
             "job_id": request.job_id,
             "status": "cleaned",
             "stats": stats.model_dump(),
-            "transform_spec": spec.model_dump(by_alias=True),
-            "changes": [e.model_dump() for e in audit_entries[:500]],
+            "transform_spec": spec.model_dump(mode="json", by_alias=True),
+            "changes": [e.model_dump(mode="json") for e in audit_entries[:500]],
             "flagged": [],
             "cleaned_preview": cleaned[:10],
             "validation_warnings": validation.warnings,

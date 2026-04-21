@@ -8,12 +8,10 @@ from fastapi.responses import JSONResponse
 from app.core.detector import detect_encoding, detect_format, detect_issues
 from app.core.parser import parse_data
 from app.core.planner import infer_schema_rule_based
+from app.core.job_store import set_job
 from app.models.schemas import IngestRequest, IngestResponse, FieldSchema, ErrorResponse, ErrorDetail
 
 router = APIRouter()
-
-# In-memory job store (replace with Redis/DB in production)
-_jobs: dict[str, dict] = {}
 
 
 @router.post("/ingest", response_model=IngestResponse)
@@ -99,14 +97,14 @@ async def _process_content(content: str, encoding: str, filename: str) -> JSONRe
     issues = detect_issues(records)
     job_id = f"smlt_{uuid.uuid4().hex[:8]}"
 
-    _jobs[job_id] = {
+    set_job(job_id, {
         "status": "parsed",
         "format": fmt,
         "encoding": encoding,
         "records": records,
         "schema": schema_types,
         "filename": filename,
-    }
+    })
 
     return JSONResponse(
         content={
@@ -121,7 +119,3 @@ async def _process_content(content: str, encoding: str, filename: str) -> JSONRe
             "issues_detected": issues,
         }
     )
-
-
-def get_jobs() -> dict:
-    return _jobs

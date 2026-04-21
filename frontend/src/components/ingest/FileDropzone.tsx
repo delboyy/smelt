@@ -5,20 +5,12 @@ import { T } from "@/lib/constants";
 import { useSmeltStore } from "@/lib/store";
 
 type FileDropzoneProps = {
-  onData: (text: string) => void;
+  onFile: (file: File) => void;
 };
 
-export function FileDropzone({ onData }: FileDropzoneProps) {
+export function FileDropzone({ onFile }: FileDropzoneProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const { dragOver, setDragOver } = useSmeltStore();
-
-  const handleFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      if (ev.target?.result) onData(ev.target.result as string);
-    };
-    reader.readAsText(file);
-  };
 
   return (
     <div
@@ -31,7 +23,7 @@ export function FileDropzone({ onData }: FileDropzoneProps) {
         e.preventDefault();
         setDragOver(false);
         const file = e.dataTransfer.files[0];
-        if (file) handleFile(file);
+        if (file) onFile(file);
       }}
       onClick={() => fileRef.current?.click()}
       style={{
@@ -57,7 +49,7 @@ export function FileDropzone({ onData }: FileDropzoneProps) {
         accept=".json,.csv,.xml,.tsv,.txt,.xlsx"
         onChange={(e) => {
           const file = e.target.files?.[0];
-          if (file) handleFile(file);
+          if (file) onFile(file);
         }}
         style={{ display: "none" }}
       />

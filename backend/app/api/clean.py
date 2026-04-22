@@ -1,6 +1,7 @@
 """POST /api/v1/clean — run the cleaning pipeline."""
 
-from fastapi import APIRouter, HTTPException
+import asyncio
+from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import JSONResponse
 
 from app.core.job_store import get_job, update_job
@@ -12,13 +13,14 @@ from app.core.auditor import build_audit_summary
 from app.core.quality_scorer import calculate_data_quality_score
 from app.core.notifications import notify_slack
 from app.api.integrations import _slack_tokens
+from app.api.auth import _get_current_user_id
 from app.models.schemas import CleanRequest
 
 router = APIRouter()
 
 
 @router.post("/clean")
-async def clean_data(request: CleanRequest) -> JSONResponse:
+async def clean_data(request: CleanRequest, authorization: str | None = Header(default=None)) -> JSONResponse:
     """Run the hybrid AI cleaning pipeline on a previously ingested dataset."""
     job = get_job(request.job_id)
     if job is None:
@@ -71,10 +73,9 @@ async def clean_data(request: CleanRequest) -> JSONResponse:
 
     # Fire Slack notification if connected (best-effort)
     try:
-        user_id = None  # No user_id in current clean flow — placeholder for future auth
+        user_id = _get_current_user_id(authorization)
         if user_id and user_id in _slack_tokens:
             slack_info = _slack_tokens[user_id]
-            import asyncio
             asyncio.create_task(notify_slack(
                 token=slack_info["token"],
                 channel=slack_info.get("channel_id", "general"),

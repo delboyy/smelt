@@ -151,3 +151,5 @@ FastAPI (Render · Python 3.11)
 | Slack token persistence (currently in-memory only — lost on restart) | Medium |
 | Google Drive import (needs Google OAuth app verification, weeks-long process) | Medium |
 | `passlib` `crypt` deprecation warning (Python 3.13) | Low |
+
+_Fixed in last review pass: datetime.utcnow() timezone bugs (api_key.py, auth.py), Slack OAuth CSRF state validation, user_id=None blocking Slack notifications._

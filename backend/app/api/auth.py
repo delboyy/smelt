@@ -188,5 +188,5 @@ async def revoke_api_key(
     key = await db.scalar(select(ApiKey).where(ApiKey.id == key_id, ApiKey.user_id == user_id))
     if not key:
         raise HTTPException(404, "Key not found")
-    key.revoked_at = datetime.utcnow()
+    key.revoked_at = datetime.now(UTC)
     await db.commit()

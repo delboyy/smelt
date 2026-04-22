@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, UTC
 from sqlalchemy import Column, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -12,5 +12,5 @@ class ApiKey(Base):
     key_hash = Column(String(64), nullable=False, unique=True)
     name = Column(String(100), default="Default")
     last_used = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.utcnow())
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
     revoked_at = Column(DateTime(timezone=True), nullable=True)

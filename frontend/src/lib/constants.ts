@@ -31,6 +31,25 @@ export const T = {
 } as const;
 
 export const SAMPLES: Record<string, string> = {
+  "Sales Pipeline (Disaster CSV)": `rep_name,email,phone,company,deal_size,stage,close_date,probability,region,currency
+SARAH JOHNSON,sarah.johnson@acme.com,+1 (555) 867-5309,Acme Corp,"$120,000",Closed Won,2024-03-15,100%,North America,USD
+  mike chen  ,MIKE.CHEN@GLOBEX.IO,(555)4219988,Globex Inc,85000,closed-won,03/28/2024,1.0,APAC,usd
+DR. EMILY RODRIGUEZ,emily.rodriguez@initech.com,555.234.5678,  initech corporation  ,"€95,000",Negotiation,April 15 2024,0.75,EMEA,EUR
+james o'brien,jamesobrien@,+44 20 7946 0958,TechCorp Ltd,"£72,000",CLOSED WON,15-Apr-24,75%,EMEA,GBP
+SARAH JOHNSON,sarah.johnson@acme.com,+1 (555) 867-5309,Acme Corp,"$120,000",Won,2024-03-15,100%,North America,USD
+n/a,alex.kim@startup.io,see email,Startup.io Inc,"$2.4M",Discovery,Q2 2024,low,APAC,USD
+  ,  ,  ,  ,  ,  ,  ,  ,  ,
+rep_name,email,phone,company,deal_size,stage,close_date,probability,region,currency
+TOM WILLIAMS,TOM@BIGCO.COM,5551234567,BigCo LLC,"approx $45,000",Proposal,2024/05/01,~60%,North America,USD
+priya patel,PRIYA.PATEL@ENTERPRISE.IN,"+91 98765 43210","Enterprise Solutions, Ltd","₹4,500,000",closed won,01.06.2024,yes,APAC,INR
+unknown,unknown@unknown.com,000-000-0000,Unknown,0,unknown,TBD,unknown,unknown,unknown
+CARLOS MENDEZ,carlos.mendez@latam-corp.mx,(+52) 555-987-6543,LATAM Corp S.A.,"$USD 67,500.00",Negotiation,June 30 2024,65,LATAM,USD
+  Mike Chen,mike.chen@globex.io,5554219988,Globex Inc,"$85,000.00",Closed Won,28/03/2024,100%,APAC,USD
+jessica lee,jessica@techventures.co,n/a — use slack,Tech Ventures,"$1.2M",Discovery,next quarter,maybe,North America,USD
+MR. DAVID PARK,d.park@koreatech.kr,+82-10-9876-5432,Korea Tech Co.,"₩ 98,000,000",PROPOSAL,2024-07-15,55%,APAC,KRW
+,carlos.mendez@latam-corp.mx,(+52) 555-987-6543,LATAM Corp,67500,Negotiation,2024-06-30,0.65,LATAM,USD
+RACHEL GREEN,rachel.green@friends.tv,1-800-FRIENDS,Central Perk LLC,"$999.99",closed_won,Feb 29 2024,100%,North America,USD`,
+
   "CRM Contacts (CSV)": `full_name,email,phone,signup_date,company,deal_value,status
 john doe,JOHN@ACMECORP.COM,555-1234,2023/01/15,Acme Corp,$50000,active
 Jane Smith,jane.smith@widgets.io,(555) 567-8901,01-20-2023,Widgets Inc,"$120,000",Active

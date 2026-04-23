@@ -1,6 +1,6 @@
 # Smelt — Project Status
 
-_Last updated: 2026-04-22_
+_Last updated: 2026-04-22 (feature batch: user-scoped history, API key rate limiting, NL instructions, Airtable sync, Notion sync, 208 tests)_
 
 ---
 
@@ -17,7 +17,7 @@ _Last updated: 2026-04-22_
 | Audit log / change review step | ✅ | Per-field change counts |
 | Export (CSV, JSON, XML) | ✅ | Streaming response |
 | Redis job store + in-memory fallback | ✅ | 24h TTL |
-| 104 backend tests | ✅ | |
+| 208 backend tests | ✅ | |
 | Render deployment (backend) | ✅ | Python 3.11 pinned |
 | Vercel deployment (frontend) | ✅ | |
 
@@ -68,12 +68,12 @@ _Last updated: 2026-04-22_
 
 ---
 
-## Phase 3, Week 3 (Next up)
+## Phase 3, Week 3 ✅ Complete
 
-| Feature | Effort | Status |
-|---|---|---|
-| Airtable sync | 2 days | ❌ |
-| Notion sync | 2 days | ❌ |
+| Feature | Effort | Status | Notes |
+|---|---|---|---|
+| Airtable sync | 2 days | ✅ | `POST /export/airtable` — batch 10/req, creates table, inserts records |
+| Notion sync | 2 days | ✅ | `POST /export/notion` — creates DB, inserts pages, capped at 100 records |
 
 ---
 
@@ -81,7 +81,7 @@ _Last updated: 2026-04-22_
 
 | Feature | Effort | Status |
 |---|---|---|
-| Natural language cleaning instructions | 3-4 days | ❌ |
+| Natural language cleaning instructions | 3-4 days | ✅ (`instructions` field on CleanRequest, injected into LLM prompt; 4 new executor actions: merge_columns, rename_column, filter_rows, split_column) |
 | Email-in (forward to clean) | 2-3 days | ❌ |
 | Stripe billing (Day 4) | 2 days | ❌ |
 | Recipe marketplace | 3 days | ❌ |
@@ -132,6 +132,8 @@ FastAPI (Render · Python 3.11)
   ├── /api/v1/jobs/{id}/share     → create share token (30d)
   ├── /api/v1/reports/{token}     → public report (metadata only)
   ├── /api/v1/integrations/slack/* → OAuth connect/status/disconnect
+  ├── /api/v1/export/airtable     → push cleaned records to Airtable base
+  ├── /api/v1/export/notion       → push cleaned records to Notion database
   └── /api/v1/auth/*              → register / login / api-keys CRUD
         │
         ├── Redis (job store + job index) + in-memory fallback
@@ -145,8 +147,8 @@ FastAPI (Render · Python 3.11)
 
 | Item | Priority |
 |---|---|
-| API key rate limiting (Redis INCR per key on `/clean`) | High |
-| User-scoped jobs (currently global index, no per-user filtering) | High |
+| API key rate limiting (Redis INCR per key on `/clean`) | ✅ Done — 100 req/min per key, fail-open if Redis absent |
+| User-scoped jobs (currently global index, no per-user filtering) | ✅ Done — per-user Redis + in-memory index; `GET /jobs` scoped by JWT |
 | Stripe billing + tier enforcement | High (Phase 4) |
 | Slack token persistence (currently in-memory only — lost on restart) | Medium |
 | Google Drive import (needs Google OAuth app verification, weeks-long process) | Medium |

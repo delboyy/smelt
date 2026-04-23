@@ -70,7 +70,7 @@ The frontend auto-connects to `http://localhost:8000`. Set `NEXT_PUBLIC_API_URL`
 ## Running tests
 
 ```bash
-# Backend — 104 unit + integration tests
+# Backend — 208 unit + integration tests
 cd backend && NEXTAUTH_SECRET=test pytest tests/ -q
 ```
 
@@ -173,6 +173,8 @@ Smelt auto-detects and normalizes 12 field types:
 | `GET` | `/api/v1/reports/{token}` | Public report (metadata only) |
 | `GET` | `/api/v1/integrations/slack/connect` | Start Slack OAuth |
 | `GET` | `/api/v1/integrations/slack/status` | Slack connection status |
+| `POST` | `/api/v1/export/airtable` | Push cleaned records to Airtable base |
+| `POST` | `/api/v1/export/notion` | Push cleaned records to Notion database |
 | `POST` | `/api/v1/auth/register` | Create account |
 | `POST` | `/api/v1/auth/login` | Login → JWT |
 | `GET` | `/api/v1/auth/api-keys` | List API keys |

@@ -1,10 +1,11 @@
 """POST /api/v1/clean — run the cleaning pipeline."""
 
 import asyncio
+import hashlib
 from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import JSONResponse
 
-from app.core.job_store import get_job, update_job
+from app.core.job_store import get_job, update_job, _get_redis
 from app.core.sampling import stratified_sample
 from app.core.planner import generate_transform_spec
 from app.core.validator import validate_spec
@@ -35,6 +36,24 @@ async def clean_data(request: CleanRequest, authorization: str | None = Header(d
             detail={"error": {"code": "INVALID_STATE", "message": f"Job is in state: {job['status']}"}},
         )
 
+    user_id = _get_current_user_id(authorization)
+
+    if authorization and authorization.startswith("Bearer sk_live_"):
+        key_hash = hashlib.sha256(authorization[7:].encode()).hexdigest()
+        redis = _get_redis()
+        if redis:
+            try:
+                rate_key = f"smelt:rate:{key_hash}"
+                count = redis.incr(rate_key)
+                if count == 1:
+                    redis.expire(rate_key, 60)
+                if count > 100:
+                    raise HTTPException(429, "Rate limit exceeded: 100 requests/minute")
+            except HTTPException:
+                raise
+            except Exception:
+                pass
+
     records = job["records"]
     source_format = job["format"]
 
@@ -46,6 +65,7 @@ async def clean_data(request: CleanRequest, authorization: str | None = Header(d
         sample=sample,
         source_format=source_format,
         record_count=len(records),
+        instructions=request.instructions,
     )
 
     # Phase 3: Validate spec against sample
@@ -73,7 +93,6 @@ async def clean_data(request: CleanRequest, authorization: str | None = Header(d
 
     # Fire Slack notification if connected (best-effort)
     try:
-        user_id = _get_current_user_id(authorization)
         if user_id and user_id in _slack_tokens:
             slack_info = _slack_tokens[user_id]
             asyncio.create_task(notify_slack(

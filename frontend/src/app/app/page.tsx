@@ -26,8 +26,9 @@ import { useSmeltStore } from "@/lib/store";
 import type { FieldType } from "@/lib/detection/schema";
 import type { Issue, CleaningStats } from "@/lib/cleaning/engine";
 import { toCSV, toJSON, toXML } from "@/lib/export/formatters";
-import { ingestFile, ingestRaw, ingestUrl, cleanJob, downloadExport, fetchPreviewPlan, createShareLink } from "@/lib/api";
+import { ingestFile, ingestRaw, ingestUrl, cleanJob, downloadExport, fetchPreviewPlan, createShareLink, exportToAirtable, exportToNotion } from "@/lib/api";
 import type { IngestResponse, CleanResponse, Suggestion } from "@/lib/api";
+import { useSession } from "next-auth/react";
 import { T } from "@/lib/constants";
 
 const CHANGE_TYPE_MAP: Record<string, Issue["type"]> = {
@@ -92,9 +93,25 @@ export default function SmeltApp() {
     setError,
   } = useSmeltStore();
 
+  const { data: session } = useSession();
+  const sessionToken = (session as { accessToken?: string } | null)?.accessToken ?? "";
+
   const [copied, setCopied] = useState(false);
   const [cleanedRecordCount, setCleanedRecordCount] = useState(0);
   const [ingestTab, setIngestTab] = useState<"file" | "paste" | "url">("file");
+  const [instructions, setInstructions] = useState("");
+
+  const [airtableOpen, setAirtableOpen] = useState(false);
+  const [notionOpen, setNotionOpen] = useState(false);
+  const [airtableToken, setAirtableToken] = useState("");
+  const [airtableBaseId, setAirtableBaseId] = useState("");
+  const [airtableTable, setAirtableTable] = useState("Cleaned Data");
+  const [notionToken, setNotionToken] = useState("");
+  const [notionPageId, setNotionPageId] = useState("");
+  const [notionTitle, setNotionTitle] = useState("Cleaned Data");
+  const [integrationResult, setIntegrationResult] = useState<string | null>(null);
+  const [integrationError, setIntegrationError] = useState<string | null>(null);
+  const [integrationLoading, setIntegrationLoading] = useState(false);
 
   const {
     qualityScoreBefore, qualityScoreAfter, setQualityScoreBefore, setQualityScoreAfter,
@@ -187,7 +204,7 @@ export default function SmeltApp() {
     setLoading(true);
     setStep("Review");
     try {
-      const data = await cleanJob(jobId);
+      const data = await cleanJob(jobId, { instructions: instructions || undefined });
       const { issues, stats, cleaned, schema: s } = mapCleanResponse(data);
       setCleanedRecordCount(data.stats.records_out);
       setResult({ cleaned, issues, schema: s, stats });
@@ -404,6 +421,35 @@ export default function SmeltApp() {
               onToggle={toggleSuggestion}
               loading={suggestionsLoading}
             />
+
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ fontSize: "11px", color: T.text3, letterSpacing: "1px", textTransform: "uppercase", marginBottom: "8px" }}>
+                Custom Instructions (optional)
+              </div>
+              <textarea
+                value={instructions}
+                onChange={(e) => setInstructions(e.target.value)}
+                placeholder="e.g. Merge first_name and last_name into full_name, remove rows with missing email, rename deal_value to revenue..."
+                style={{
+                  width: "100%",
+                  minHeight: "80px",
+                  background: T.surface,
+                  border: `1px solid ${T.border}`,
+                  borderRadius: "8px",
+                  color: T.text1,
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: "13px",
+                  padding: "10px 12px",
+                  resize: "vertical",
+                  outline: "none",
+                  boxSizing: "border-box",
+                  transition: "border-color 0.15s",
+                }}
+                onFocus={(e) => { e.target.style.borderColor = T.accent; }}
+                onBlur={(e) => { e.target.style.borderColor = T.border; }}
+              />
+            </div>
+
             <DataPreview records={parsed} schema={schema} />
 
             <div style={{ display: "flex", gap: "10px", marginTop: "18px" }}>
@@ -560,6 +606,157 @@ export default function SmeltApp() {
             </div>
 
             <CRMPushTeaser exportFormat={exportFormat} />
+
+            <div style={{ marginTop: "24px" }}>
+              <div style={{ fontSize: "11px", color: T.text3, letterSpacing: "1px", textTransform: "uppercase", marginBottom: "12px" }}>
+                Push to Integration
+              </div>
+
+              {integrationResult && (
+                <div style={{ background: T.greenBg, border: `1px solid ${T.greenBorder}`, borderRadius: "8px", padding: "10px 14px", marginBottom: "12px", fontSize: "13px", color: T.green }}>
+                  {integrationResult}
+                </div>
+              )}
+              {integrationError && (
+                <div style={{ background: T.redBg, border: `1px solid ${T.redBorder}`, borderRadius: "8px", padding: "10px 14px", marginBottom: "12px", fontSize: "13px", color: T.red }}>
+                  {integrationError}
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                {/* Airtable card */}
+                <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: "10px", padding: "16px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                    <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#FF6E3C", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <span style={{ color: "#fff", fontWeight: 700, fontSize: "11px", fontFamily: "'DM Sans', sans-serif" }}>AT</span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "13px", fontWeight: 600, color: T.text1 }}>Airtable</div>
+                      <div style={{ fontSize: "11px", color: T.text3 }}>Push to a base</div>
+                    </div>
+                    <button
+                      onClick={() => { setAirtableOpen(!airtableOpen); setNotionOpen(false); }}
+                      style={{ marginLeft: "auto", background: "none", border: `1px solid ${T.border}`, borderRadius: "6px", color: T.text2, fontSize: "11px", fontWeight: 600, padding: "4px 10px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
+                    >
+                      {airtableOpen ? "Cancel" : "Connect"}
+                    </button>
+                  </div>
+
+                  {airtableOpen && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <input
+                        type="password"
+                        value={airtableToken}
+                        onChange={(e) => setAirtableToken(e.target.value)}
+                        placeholder="Personal Access Token"
+                        style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: "6px", color: T.text1, fontFamily: "'DM Sans', sans-serif", fontSize: "12px", padding: "7px 10px", outline: "none", width: "100%", boxSizing: "border-box" }}
+                      />
+                      <input
+                        type="text"
+                        value={airtableBaseId}
+                        onChange={(e) => setAirtableBaseId(e.target.value)}
+                        placeholder="appXXXXXX"
+                        style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: "6px", color: T.text1, fontFamily: "'DM Sans', sans-serif", fontSize: "12px", padding: "7px 10px", outline: "none", width: "100%", boxSizing: "border-box" }}
+                      />
+                      <input
+                        type="text"
+                        value={airtableTable}
+                        onChange={(e) => setAirtableTable(e.target.value)}
+                        placeholder="Table Name"
+                        style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: "6px", color: T.text1, fontFamily: "'DM Sans', sans-serif", fontSize: "12px", padding: "7px 10px", outline: "none", width: "100%", boxSizing: "border-box" }}
+                      />
+                      <button
+                        disabled={integrationLoading || !airtableToken || !airtableBaseId}
+                        onClick={async () => {
+                          if (!jobId) return;
+                          setIntegrationLoading(true);
+                          setIntegrationResult(null);
+                          setIntegrationError(null);
+                          try {
+                            const r = await exportToAirtable(sessionToken, { job_id: jobId, personal_access_token: airtableToken, base_id: airtableBaseId, table_name: airtableTable || "Cleaned Data" });
+                            setIntegrationResult(`✓ ${r.records_pushed} records pushed to Airtable${r.truncated ? " (truncated)" : ""}`);
+                            setAirtableOpen(false);
+                          } catch (e) {
+                            setIntegrationError(e instanceof Error ? e.message : "Airtable push failed");
+                          } finally {
+                            setIntegrationLoading(false);
+                          }
+                        }}
+                        style={{ background: T.accentBg, border: `1px solid ${T.accentBorder}`, borderRadius: "6px", color: T.accent, fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 600, padding: "7px 10px", cursor: integrationLoading ? "not-allowed" : "pointer", opacity: integrationLoading || !airtableToken || !airtableBaseId ? 0.5 : 1 }}
+                      >
+                        {integrationLoading ? "Pushing…" : "Push to Airtable"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Notion card */}
+                <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: "10px", padding: "16px 20px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+                    <div style={{ width: "28px", height: "28px", borderRadius: "6px", background: "#000000", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, border: `1px solid ${T.border}` }}>
+                      <span style={{ color: "#fff", fontWeight: 700, fontSize: "14px", fontFamily: "serif" }}>N</span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "13px", fontWeight: 600, color: T.text1 }}>Notion</div>
+                      <div style={{ fontSize: "11px", color: T.text3 }}>Create a database</div>
+                    </div>
+                    <button
+                      onClick={() => { setNotionOpen(!notionOpen); setAirtableOpen(false); }}
+                      style={{ marginLeft: "auto", background: "none", border: `1px solid ${T.border}`, borderRadius: "6px", color: T.text2, fontSize: "11px", fontWeight: 600, padding: "4px 10px", cursor: "pointer", fontFamily: "'DM Sans', sans-serif" }}
+                    >
+                      {notionOpen ? "Cancel" : "Connect"}
+                    </button>
+                  </div>
+
+                  {notionOpen && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                      <input
+                        type="password"
+                        value={notionToken}
+                        onChange={(e) => setNotionToken(e.target.value)}
+                        placeholder="Integration Token"
+                        style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: "6px", color: T.text1, fontFamily: "'DM Sans', sans-serif", fontSize: "12px", padding: "7px 10px", outline: "none", width: "100%", boxSizing: "border-box" }}
+                      />
+                      <input
+                        type="text"
+                        value={notionPageId}
+                        onChange={(e) => setNotionPageId(e.target.value)}
+                        placeholder="Page ID from URL"
+                        style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: "6px", color: T.text1, fontFamily: "'DM Sans', sans-serif", fontSize: "12px", padding: "7px 10px", outline: "none", width: "100%", boxSizing: "border-box" }}
+                      />
+                      <input
+                        type="text"
+                        value={notionTitle}
+                        onChange={(e) => setNotionTitle(e.target.value)}
+                        placeholder="Database Title"
+                        style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: "6px", color: T.text1, fontFamily: "'DM Sans', sans-serif", fontSize: "12px", padding: "7px 10px", outline: "none", width: "100%", boxSizing: "border-box" }}
+                      />
+                      <button
+                        disabled={integrationLoading || !notionToken || !notionPageId}
+                        onClick={async () => {
+                          if (!jobId) return;
+                          setIntegrationLoading(true);
+                          setIntegrationResult(null);
+                          setIntegrationError(null);
+                          try {
+                            const r = await exportToNotion(sessionToken, { job_id: jobId, integration_token: notionToken, parent_page_id: notionPageId, database_title: notionTitle || "Cleaned Data" });
+                            setIntegrationResult(`✓ ${r.records_pushed} records pushed to Notion${r.truncated ? " (truncated)" : ""}`);
+                            setNotionOpen(false);
+                          } catch (e) {
+                            setIntegrationError(e instanceof Error ? e.message : "Notion push failed");
+                          } finally {
+                            setIntegrationLoading(false);
+                          }
+                        }}
+                        style={{ background: T.accentBg, border: `1px solid ${T.accentBorder}`, borderRadius: "6px", color: T.accent, fontFamily: "'DM Sans', sans-serif", fontSize: "12px", fontWeight: 600, padding: "7px 10px", cursor: integrationLoading ? "not-allowed" : "pointer", opacity: integrationLoading || !notionToken || !notionPageId ? 0.5 : 1 }}
+                      >
+                        {integrationLoading ? "Pushing…" : "Push to Notion"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

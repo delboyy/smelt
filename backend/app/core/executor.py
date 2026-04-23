@@ -205,6 +205,43 @@ def _apply_action(
                 ).alias(field)
             )
 
+    if action == "merge_columns":
+        fields_to_merge = params.get("fields", [])
+        sep = params.get("separator", " ")
+        valid = [f for f in fields_to_merge if f in df.columns]
+        if len(valid) >= 2:
+            merged = pl.concat_str([pl.col(f).cast(pl.String).fill_null("") for f in valid], separator=sep)
+            return df.with_columns(merged.alias(field))
+
+    if action == "rename_column":
+        new_name = params.get("new_name", "")
+        if new_name and field in df.columns and new_name not in df.columns:
+            return df.rename({field: new_name})
+
+    if action == "filter_rows":
+        condition = params.get("condition", "not_empty")
+        value = str(params.get("value", ""))
+        col_str = pl.col(field).cast(pl.String)
+        if condition == "equals":
+            return df.filter(col_str != value)
+        elif condition == "not_equals":
+            return df.filter(col_str == value)
+        elif condition == "contains":
+            return df.filter(~col_str.str.contains(value))
+        elif condition == "empty":
+            return df.filter(col_str.is_not_null() & (col_str.str.strip_chars() != ""))
+        elif condition == "not_empty":
+            return df.filter(col_str.is_not_null() & (col_str.str.strip_chars() != ""))
+
+    if action == "split_column":
+        delim = params.get("delimiter", " ")
+        into = params.get("into", [])
+        if into:
+            parts = pl.col(field).cast(pl.String).str.split(delim)
+            for i, new_col in enumerate(into):
+                df = df.with_columns(parts.list.get(i, null_on_oob=True).alias(new_col))
+        return df
+
     return df
 
 

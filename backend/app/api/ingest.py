@@ -3,7 +3,7 @@
 import uuid
 import ipaddress
 from typing import Optional
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -14,6 +14,7 @@ from app.core.parser import parse_data
 from app.core.planner import infer_schema_rule_based
 from app.core.job_store import set_job, add_to_job_index
 from app.core.quality_scorer import calculate_data_quality_score
+from app.api.auth import _get_current_user_id
 from app.models.schemas import IngestRequest, IngestResponse, FieldSchema, ErrorResponse, ErrorDetail
 
 router = APIRouter()
@@ -41,7 +42,10 @@ def _is_safe_url(url: str) -> bool:
 
 
 @router.post("/ingest/url", response_model=IngestResponse)
-async def ingest_from_url(request: UrlIngestRequest) -> JSONResponse:
+async def ingest_from_url(
+    request: UrlIngestRequest,
+    authorization: str | None = Header(default=None),
+) -> JSONResponse:
     if not _is_safe_url(request.url):
         raise HTTPException(400, "Invalid or blocked URL")
     MAX_BYTES = 100 * 1024 * 1024  # 100 MB
@@ -61,12 +65,14 @@ async def ingest_from_url(request: UrlIngestRequest) -> JSONResponse:
         content = raw_bytes.decode(encoding, errors="replace")
     except Exception:
         content = raw_bytes.decode("utf-8", errors="replace")
-    return await _process_content(content, encoding, request.url.split("/")[-1] or "url_import")
+    user_id = _get_current_user_id(authorization)
+    return await _process_content(content, encoding, request.url.split("/")[-1] or "url_import", user_id=user_id)
 
 
 @router.post("/ingest", response_model=IngestResponse)
 async def ingest_file(
     file: Optional[UploadFile] = File(None),
+    authorization: str | None = Header(default=None),
 ) -> JSONResponse:
     """Accept a file upload and parse it."""
     if file is None:
@@ -82,11 +88,15 @@ async def ingest_file(
     except Exception:
         content = raw_bytes.decode("utf-8", errors="replace")
 
-    return await _process_content(content, encoding, file.filename or "upload")
+    user_id = _get_current_user_id(authorization)
+    return await _process_content(content, encoding, file.filename or "upload", user_id=user_id)
 
 
 @router.post("/ingest/raw", response_model=IngestResponse)
-async def ingest_raw(request: IngestRequest) -> JSONResponse:
+async def ingest_raw(
+    request: IngestRequest,
+    authorization: str | None = Header(default=None),
+) -> JSONResponse:
     """Accept raw data string."""
     if not request.data:
         raise HTTPException(
@@ -98,10 +108,11 @@ async def ingest_raw(request: IngestRequest) -> JSONResponse:
                 )
             ).model_dump(),
         )
-    return await _process_content(request.data, "UTF-8", "paste")
+    user_id = _get_current_user_id(authorization)
+    return await _process_content(request.data, "UTF-8", "paste", user_id=user_id)
 
 
-async def _process_content(content: str, encoding: str, filename: str) -> JSONResponse:
+async def _process_content(content: str, encoding: str, filename: str, user_id: str | None = None) -> JSONResponse:
     fmt = detect_format(content)
 
     if fmt == "TXT":
@@ -166,7 +177,7 @@ async def _process_content(content: str, encoding: str, filename: str) -> JSONRe
         "format": fmt,
         "record_count": len(records),
         "quality_score_before": quality,
-    })
+    }, user_id=user_id)
 
     return JSONResponse(
         content={

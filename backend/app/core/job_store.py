@@ -17,6 +17,7 @@ PRO_TTL = 86_400 * 30   # 30 days
 _settings = get_settings()
 _redis: redis_lib.Redis | None = None
 _fallback: dict[str, dict] = {}
+_user_index: dict[str, list] = {}
 
 
 def _get_redis() -> redis_lib.Redis | None:
@@ -68,35 +69,53 @@ def update_job(job_id: str, updates: dict[str, Any], ttl: int = FREE_TTL) -> Non
     set_job(job_id, job, ttl)
 
 
-def add_to_job_index(job_id: str, meta: dict) -> None:
-    """Track job in the global job index (last 200 jobs)."""
+def add_to_job_index(job_id: str, meta: dict, user_id: str | None = None) -> None:
+    """Track job in the global job index (last 200 jobs) and optionally a per-user index."""
     entry = json.dumps({"job_id": job_id, "created_at": datetime.now(UTC).isoformat(), **meta})
     client = _get_redis()
     if client:
         try:
             client.lpush("smelt:job_index", entry)
             client.ltrim("smelt:job_index", 0, 199)
+            if user_id:
+                client.lpush(f"smelt:job_index:{user_id}", entry)
+                client.ltrim(f"smelt:job_index:{user_id}", 0, 199)
         except Exception:
             pass
-    # Always keep in-memory index too
     if not hasattr(add_to_job_index, "_index"):
         add_to_job_index._index = []
-    add_to_job_index._index.insert(0, json.loads(entry))
+    parsed = json.loads(entry)
+    add_to_job_index._index.insert(0, parsed)
     add_to_job_index._index = add_to_job_index._index[:200]
+    if user_id:
+        if user_id not in _user_index:
+            _user_index[user_id] = []
+        _user_index[user_id].insert(0, parsed)
+        _user_index[user_id] = _user_index[user_id][:200]
 
 
-def get_job_index(page: int = 1, limit: int = 20) -> tuple[list[dict], int]:
-    """Get paginated job index."""
+def get_job_index(page: int = 1, limit: int = 20, user_id: str | None = None) -> tuple[list[dict], int]:
+    """Get paginated job index, optionally scoped to a user."""
     items = []
     client = _get_redis()
-    if client:
-        try:
-            raw = client.lrange("smelt:job_index", 0, 199)
-            items = [json.loads(r) for r in raw]
-        except Exception:
-            pass
-    if not items and hasattr(add_to_job_index, "_index"):
-        items = add_to_job_index._index
+    if user_id:
+        if client:
+            try:
+                raw = client.lrange(f"smelt:job_index:{user_id}", 0, 199)
+                items = [json.loads(r) for r in raw]
+            except Exception:
+                pass
+        if not items:
+            items = _user_index.get(user_id, [])
+    else:
+        if client:
+            try:
+                raw = client.lrange("smelt:job_index", 0, 199)
+                items = [json.loads(r) for r in raw]
+            except Exception:
+                pass
+        if not items and hasattr(add_to_job_index, "_index"):
+            items = add_to_job_index._index
     total = len(items)
     start = (page - 1) * limit
     return items[start:start + limit], total

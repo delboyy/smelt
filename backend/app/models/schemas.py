@@ -93,6 +93,7 @@ class CleanRequest(BaseModel):
     job_id: str
     options: dict[str, Any] = {}
     recipe_id: Optional[str] = None
+    instructions: Optional[str] = None
 
 
 class ExportRequest(BaseModel):

@@ -116,11 +116,13 @@ export async function ingestUrl(url: string): Promise<IngestResponse> {
   return handleResponse<IngestResponse>(res);
 }
 
-export async function cleanJob(jobId: string, options = {}): Promise<CleanResponse> {
+export async function cleanJob(jobId: string, params?: { instructions?: string }): Promise<CleanResponse> {
+  const body: Record<string, unknown> = { job_id: jobId };
+  if (params?.instructions) body.instructions = params.instructions;
   const res = await fetch(`${API_URL}/api/v1/clean`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ job_id: jobId, options }),
+    body: JSON.stringify(body),
   });
   return handleResponse<CleanResponse>(res);
 }
@@ -244,4 +246,41 @@ export async function revokeApiKey(token: string, id: string): Promise<void> {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok && res.status !== 204) throw new Error(`Revoke failed: ${res.status}`);
+}
+
+export interface AirtableExportRequest {
+  job_id: string;
+  personal_access_token: string;
+  base_id: string;
+  table_name: string;
+}
+
+export interface NotionExportRequest {
+  job_id: string;
+  integration_token: string;
+  parent_page_id: string;
+  database_title: string;
+}
+
+export interface IntegrationExportResult {
+  records_pushed: number;
+  truncated?: boolean;
+}
+
+export async function exportToAirtable(token: string, req: AirtableExportRequest): Promise<IntegrationExportResult> {
+  const res = await fetch(`${API_URL}/api/v1/export/airtable`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+    body: JSON.stringify(req),
+  });
+  return handleResponse<IntegrationExportResult>(res);
+}
+
+export async function exportToNotion(token: string, req: NotionExportRequest): Promise<IntegrationExportResult> {
+  const res = await fetch(`${API_URL}/api/v1/export/notion`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+    body: JSON.stringify(req),
+  });
+  return handleResponse<IntegrationExportResult>(res);
 }

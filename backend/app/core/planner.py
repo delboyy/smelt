@@ -114,6 +114,7 @@ async def generate_transform_spec(
     sample: list[dict[str, Any]],
     source_format: str,
     record_count: int,
+    instructions: str | None = None,
 ) -> TransformSpec:
     """Generate a transform spec via LLM or rule-based fallback.
 
@@ -122,7 +123,12 @@ async def generate_transform_spec(
     settings = get_settings()
     sample_json = json.dumps(sample[:20], indent=2, default=str)
     columns = list(sample[0].keys()) if sample else []
+    instructions_section = (
+        f'The user has provided these custom cleaning instructions — apply them in addition to standard cleaning:\n"{instructions}"\n\n'
+        if instructions else ""
+    )
     prompt = (
+        f"{instructions_section}"
         f"Analyze this data sample and generate a transform spec.\n\n"
         f"Source format: {source_format}\nTotal records: {record_count}\n"
         f"Columns: {columns}\n\nSample data (first 20 rows):\n{sample_json}\n\n"

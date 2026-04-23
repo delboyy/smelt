@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { Header } from "@/components/layout/Header";
 import { StepBar } from "@/components/layout/StepBar";
 import { FileDropzone } from "@/components/ingest/FileDropzone";
@@ -292,10 +293,18 @@ export default function SmeltApp() {
       <Header />
       <StepBar current={step} />
 
+      <AnimatePresence mode="wait">
+      <motion.div
+        key={step}
+        initial={{ opacity: 0, y: 14, filter: "blur(4px)" }}
+        animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+        exit={{ opacity: 0, y: -10, filter: "blur(4px)" }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      >
       <div style={containerStyle}>
         {/* INGEST */}
         {step === "Ingest" && (
-          <div className="animate-smelt-fade-in">
+          <div>
             <h1
               style={{
                 fontSize: "28px",
@@ -760,6 +769,8 @@ export default function SmeltApp() {
           </div>
         )}
       </div>
+      </motion.div>
+      </AnimatePresence>
     </div>
   );
 }

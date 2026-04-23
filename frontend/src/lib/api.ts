@@ -91,46 +91,59 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return res.json();
 }
 
-export async function ingestFile(file: File): Promise<IngestResponse> {
+export async function ingestFile(file: File, token?: string): Promise<IngestResponse> {
   const formData = new FormData();
   formData.append("file", file);
-  const res = await fetch(`${API_URL}/api/v1/ingest`, { method: "POST", body: formData });
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}/api/v1/ingest`, { method: "POST", body: formData, headers });
   return handleResponse<IngestResponse>(res);
 }
 
-export async function ingestRaw(data: string): Promise<IngestResponse> {
+export async function ingestRaw(data: string, token?: string): Promise<IngestResponse> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${API_URL}/api/v1/ingest/raw`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ data, format: "auto", encoding: "auto" }),
   });
   return handleResponse<IngestResponse>(res);
 }
 
-export async function ingestUrl(url: string): Promise<IngestResponse> {
+export async function ingestUrl(url: string, token?: string): Promise<IngestResponse> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${API_URL}/api/v1/ingest/url`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ url }),
   });
   return handleResponse<IngestResponse>(res);
 }
 
-export async function cleanJob(jobId: string, params?: { instructions?: string }): Promise<CleanResponse> {
+export async function cleanJob(
+  jobId: string,
+  params?: { instructions?: string; token?: string },
+): Promise<CleanResponse> {
   const body: Record<string, unknown> = { job_id: jobId };
   if (params?.instructions) body.instructions = params.instructions;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (params?.token) headers["Authorization"] = `Bearer ${params.token}`;
   const res = await fetch(`${API_URL}/api/v1/clean`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   return handleResponse<CleanResponse>(res);
 }
 
-export async function downloadExport(jobId: string, format: string): Promise<void> {
+export async function downloadExport(jobId: string, format: string, token?: string): Promise<void> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(`${API_URL}/api/v1/export`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ job_id: jobId, format: format.toLowerCase() }),
   });
   if (!res.ok) throw new Error(`Export failed: ${res.status}`);
@@ -219,8 +232,10 @@ export async function disconnectSlack(token: string): Promise<void> {
   });
 }
 
-export async function fetchJobs(page = 1, limit = 20): Promise<JobsResponse> {
-  const res = await fetch(`${API_URL}/api/v1/jobs?page=${page}&limit=${limit}`);
+export async function fetchJobs(page = 1, limit = 20, token?: string): Promise<JobsResponse> {
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${API_URL}/api/v1/jobs?page=${page}&limit=${limit}`, { headers });
   return handleResponse<JobsResponse>(res);
 }
 

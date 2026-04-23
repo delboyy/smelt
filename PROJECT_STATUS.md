@@ -1,6 +1,6 @@
 # Smelt — Project Status
 
-_Last updated: 2026-04-22 (feature batch: user-scoped history, API key rate limiting, NL instructions, Airtable sync, Notion sync, 208 tests)_
+_Last updated: 2026-04-23 (full frontend-backend integration pass)_
 
 ---
 
@@ -147,11 +147,11 @@ FastAPI (Render · Python 3.11)
 
 | Item | Priority |
 |---|---|
-| API key rate limiting (Redis INCR per key on `/clean`) | ✅ Done — 100 req/min per key, fail-open if Redis absent |
-| User-scoped jobs (currently global index, no per-user filtering) | ✅ Done — per-user Redis + in-memory index; `GET /jobs` scoped by JWT |
+| API key rate limiting (Redis INCR per key on `/clean`) | ✅ Done |
+| User-scoped jobs (per-user Redis + in-memory index) | ✅ Done |
+| Auth tokens propagated through all frontend API calls | ✅ Done |
+| Validation warnings surfaced in Review UI | ✅ Done |
+| Slack token persistence (currently in-memory — lost on restart) | Medium |
 | Stripe billing + tier enforcement | High (Phase 4) |
-| Slack token persistence (currently in-memory only — lost on restart) | Medium |
-| Google Drive import (needs Google OAuth app verification, weeks-long process) | Medium |
+| Google Drive import (needs Google OAuth app verification) | Medium |
 | `passlib` `crypt` deprecation warning (Python 3.13) | Low |
-
-_Fixed in last review pass: datetime.utcnow() timezone bugs (api_key.py, auth.py), Slack OAuth CSRF state validation, user_id=None blocking Slack notifications._

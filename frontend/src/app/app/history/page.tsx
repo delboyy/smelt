@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout/Header";
 import { T } from "@/lib/constants";
 import { fetchJobs } from "@/lib/api";
@@ -66,6 +67,9 @@ function formatDate(iso: string) {
 }
 
 export default function HistoryPage() {
+  const { data: session } = useSession();
+  const sessionToken = (session as { accessToken?: string } | null)?.accessToken || undefined;
+
   const [jobs, setJobs] = useState<JobIndexEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -75,7 +79,7 @@ export default function HistoryPage() {
 
   useEffect(() => {
     setLoading(true);
-    fetchJobs(page)
+    fetchJobs(page, 20, sessionToken)
       .then((r) => {
         setJobs(r.jobs);
         setTotal(r.total);
@@ -83,7 +87,7 @@ export default function HistoryPage() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [page]);
+  }, [page, sessionToken]);
 
   return (
     <div style={{ minHeight: "100vh", background: T.bg, color: T.text1, fontFamily: "'DM Sans', sans-serif" }}>

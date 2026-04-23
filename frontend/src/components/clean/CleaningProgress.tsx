@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { T } from "@/lib/constants";
 
@@ -12,21 +12,30 @@ const PHASES = [
   { label: "Calculating quality score", sub: "Measuring completeness, consistency, uniqueness, conformity" },
 ];
 
+const PHASE_TIMINGS = [900, 2400, 1800, 1200, 900];
+
 export function CleaningProgress() {
   const [phaseIdx, setPhaseIdx] = useState(0);
+  // Track all scheduled timeouts so every one is cleared on unmount
+  const timeoutRefs = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
-    const timings = [900, 2400, 1800, 1200, 900];
     let idx = 0;
     const tick = () => {
       idx++;
       if (idx < PHASES.length) {
         setPhaseIdx(idx);
-        setTimeout(tick, timings[idx] ?? 1000);
+        const t = setTimeout(tick, PHASE_TIMINGS[idx] ?? 1000);
+        timeoutRefs.current.push(t);
       }
     };
-    const t = setTimeout(tick, timings[0]);
-    return () => clearTimeout(t);
+    const first = setTimeout(tick, PHASE_TIMINGS[0]);
+    timeoutRefs.current.push(first);
+
+    return () => {
+      timeoutRefs.current.forEach(clearTimeout);
+      timeoutRefs.current = [];
+    };
   }, []);
 
   return (
@@ -36,7 +45,6 @@ export function CleaningProgress() {
       transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
       style={{ textAlign: "center", padding: "80px 24px", maxWidth: "480px", margin: "0 auto" }}
     >
-      {/* Animated ring */}
       <div style={{ position: "relative", width: "72px", height: "72px", margin: "0 auto 32px" }}>
         <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `3px solid ${T.border}` }} />
         <div
@@ -48,7 +56,6 @@ export function CleaningProgress() {
             animation: "smeltSpin 0.9s linear infinite",
           }}
         />
-        {/* Inner pulse */}
         <div style={{ position: "absolute", inset: "12px", borderRadius: "50%", background: T.accentBg, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <motion.div
             animate={{ scale: [1, 1.2, 1] }}
@@ -58,7 +65,6 @@ export function CleaningProgress() {
         </div>
       </div>
 
-      {/* Phase label with animated swap */}
       <AnimatePresence mode="wait">
         <motion.div
           key={phaseIdx}
@@ -76,7 +82,6 @@ export function CleaningProgress() {
         </motion.div>
       </AnimatePresence>
 
-      {/* Step dots */}
       <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginTop: "36px" }}>
         {PHASES.map((_, i) => (
           <motion.div

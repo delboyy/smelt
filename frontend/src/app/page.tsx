@@ -5,9 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence, useInView, useSpring, useTransform } from "framer-motion";
 import { T } from "@/lib/constants";
 
-/* ── Spring constant ──────────────────────────────────────────────────────── */
 const spring = { type: "spring" as const, stiffness: 260, damping: 28 };
 const softSpring = { type: "spring" as const, stiffness: 80, damping: 18, mass: 0.8 };
+const EASE_OUT = [0.22, 1, 0.36, 1] as const;
 
 /* ── Animated counter (count-up on scroll) ────────────────────────────────── */
 function AnimatedCounter({ value, suffix = "" }: { value: number; suffix?: string }) {
@@ -36,7 +36,7 @@ function RotatingWord() {
           initial={{ y: "110%", opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: "-110%", opacity: 0 }}
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.3, ease: EASE_OUT }}
           className="text-gradient-amber"
           style={{ display: "inline-block" }}
         >
@@ -57,7 +57,7 @@ function FadeIn({ children, delay = 0, className = "" }: { children: React.React
       className={className}
       initial={{ opacity: 0, y: 20, filter: "blur(6px)" }}
       animate={isInView ? { opacity: 1, y: 0, filter: "blur(0px)" } : {}}
-      transition={{ duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.6, delay, ease: EASE_OUT }}
     >
       {children}
     </motion.div>
@@ -97,14 +97,26 @@ function SectionLabel({ n, label }: { n: string; label: string }) {
 }
 
 /* ── Nav link ─────────────────────────────────────────────────────────────── */
+function ArrowOrb() {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: false, margin: "-100px" });
+  return (
+    <motion.div
+      ref={ref}
+      animate={inView ? { scale: [1, 1.08, 1] } : { scale: 1 }}
+      transition={{ repeat: inView ? Infinity : 0, duration: 2.5, ease: "easeInOut" }}
+      style={{ width: "40px", height: "40px", borderRadius: "50%", background: `linear-gradient(135deg, ${T.accent}, ${T.copper})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", color: T.bg, fontWeight: 700, boxShadow: "0 0 24px rgba(217,119,6,0.3)" }}
+    >→</motion.div>
+  );
+}
+
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <a
       href={href}
-      style={{ color: hovered ? T.text1 : T.text2, fontSize: "14px", textDecoration: "none", transition: "color 0.15s" }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      style={{ color: T.text2, fontSize: "14px", textDecoration: "none", transition: "color 0.15s" }}
+      onMouseEnter={(e) => (e.currentTarget.style.color = T.text1)}
+      onMouseLeave={(e) => (e.currentTarget.style.color = T.text2)}
     >
       {children}
     </a>
@@ -159,16 +171,13 @@ function PricingCard({ plan, price, period, desc, features, cta, ctaHref, highli
   plan: string; price: string; period?: string; desc: string;
   features: string[]; cta: string; ctaHref: string; highlight?: boolean;
 }) {
-  const [hovered, setHovered] = useState(false);
   return (
     <motion.div
       whileHover={{ y: -4 }}
       transition={softSpring}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       style={{
         background: highlight ? `linear-gradient(160deg, rgba(217,119,6,0.07), rgba(194,133,90,0.04) 60%, rgba(24,24,27,0))` : T.surface,
-        border: `1px solid ${highlight ? T.accentBorder : hovered ? T.borderLight : T.border}`,
+        border: `1px solid ${highlight ? T.accentBorder : T.border}`,
         borderRadius: "14px",
         padding: "28px",
         flex: 1,
@@ -234,9 +243,16 @@ export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
-    const handler = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", handler);
-    return () => window.removeEventListener("scroll", handler);
+    let rafId: number;
+    const handler = () => {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => setScrolled(window.scrollY > 20));
+    };
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", handler);
+      cancelAnimationFrame(rafId);
+    };
   }, []);
 
   return (
@@ -294,7 +310,7 @@ export default function LandingPage() {
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.65, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.65, delay: 0.2, ease: EASE_OUT }}
             style={{ fontSize: "clamp(44px, 6.5vw, 76px)", fontWeight: 800, letterSpacing: "-3.5px", lineHeight: 1.04, margin: "0 0 18px", color: T.text1 }}
           >
             Your <RotatingWord /><br />
@@ -305,7 +321,7 @@ export default function LandingPage() {
           <motion.p
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.6, delay: 0.35, ease: EASE_OUT }}
             style={{ fontSize: "18px", color: T.text2, lineHeight: 1.65, maxWidth: "580px", margin: "0 auto 40px" }}
           >
             Drop any messy CSV, JSON, or XML. AI detects the schema, fixes case, normalises dates and phones, removes duplicates — then hands you a clean file. <strong style={{ color: T.text1, fontWeight: 600 }}>No code. No config.</strong>
@@ -369,11 +385,7 @@ export default function LandingPage() {
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: "16px", alignItems: "start" }}>
             <CodePanel data={BEFORE_DATA} dirty={true} />
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", paddingTop: "52px" }}>
-              <motion.div
-                animate={{ scale: [1, 1.08, 1] }}
-                transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-                style={{ width: "40px", height: "40px", borderRadius: "50%", background: `linear-gradient(135deg, ${T.accent}, ${T.copper})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px", color: T.bg, fontWeight: 700, boxShadow: "0 0 24px rgba(217,119,6,0.3)" }}
-              >→</motion.div>
+              <ArrowOrb />
               <span style={{ fontSize: "10px", color: T.accent, letterSpacing: "0.5px", fontWeight: 700, textTransform: "uppercase" }}>Smelt</span>
             </div>
             <CodePanel data={AFTER_DATA} dirty={false} />

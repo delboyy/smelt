@@ -4,19 +4,23 @@ import { motion } from "framer-motion";
 import { STEPS, T } from "@/lib/constants";
 import type { Step } from "@/lib/constants";
 
+const MONO = "'DM Mono', 'JetBrains Mono', monospace";
+
 type StepBarProps = { current: Step };
 
 export function StepBar({ current }: StepBarProps) {
   const ci = STEPS.indexOf(current);
   return (
-    <div
+    <nav
+      aria-label="Wizard steps"
       style={{
         display: "flex",
         alignItems: "center",
-        padding: "0 24px",
+        padding: "0 32px",
+        height: "52px",
         borderBottom: `1px solid ${T.border}`,
-        background: `${T.surface}99`,
-        backdropFilter: "blur(16px)",
+        background: "rgba(9,9,11,0.92)",
+        backdropFilter: "blur(20px)",
         overflowX: "auto",
         position: "sticky",
         top: 0,
@@ -31,22 +35,37 @@ export function StepBar({ current }: StepBarProps) {
           <div key={s} style={{ display: "flex", alignItems: "center" }}>
             <div
               style={{
-                padding: "13px 16px",
+                padding: "0 14px",
+                height: "52px",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px",
-                borderBottom: isCurrent ? `2px solid ${T.accent}` : "2px solid transparent",
-                transition: "all 0.25s",
-                whiteSpace: "nowrap",
                 position: "relative",
+                whiteSpace: "nowrap",
               }}
             >
+              {/* Active gradient underline */}
+              {isCurrent && (
+                <motion.div
+                  layoutId="step-indicator"
+                  style={{
+                    position: "absolute",
+                    bottom: -1,
+                    left: 0,
+                    right: 0,
+                    height: "2px",
+                    background: `linear-gradient(90deg, ${T.accent}, ${T.copper})`,
+                    borderRadius: "1px",
+                  }}
+                />
+              )}
+
               {/* Step circle */}
               <motion.div
                 animate={{
                   background: isCurrent ? T.accent : done ? T.accentBg : "transparent",
                   borderColor: isCurrent ? T.accent : done ? T.accentBorder : T.border,
-                  scale: isCurrent ? 1.1 : 1,
+                  scale: isCurrent ? 1.12 : 1,
                 }}
                 transition={{ type: "spring", stiffness: 300, damping: 28 }}
                 style={{
@@ -56,22 +75,30 @@ export function StepBar({ current }: StepBarProps) {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  fontSize: "11px",
+                  fontSize: "10px",
                   fontWeight: 700,
+                  fontFamily: MONO,
                   color: isCurrent ? T.bg : active ? T.accent : T.text3,
-                  border: `1.5px solid`,
+                  border: "1.5px solid",
                   flexShrink: 0,
                 }}
+                aria-current={isCurrent ? "step" : undefined}
               >
-                {done ? "✓" : i + 1}
+                {done ? (
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="1.5,5 4,7.5 8.5,2.5" />
+                  </svg>
+                ) : (
+                  i + 1
+                )}
               </motion.div>
 
               <span
                 style={{
                   fontSize: "12px",
-                  fontWeight: isCurrent ? 700 : 500,
+                  fontWeight: isCurrent ? 600 : 400,
                   color: isCurrent ? T.text1 : active ? T.text2 : T.text3,
-                  letterSpacing: "0.2px",
+                  letterSpacing: "0.15px",
                   transition: "color 0.2s",
                 }}
               >
@@ -80,11 +107,19 @@ export function StepBar({ current }: StepBarProps) {
             </div>
 
             {i < STEPS.length - 1 && (
-              <div style={{ width: "20px", height: "1px", background: done ? `${T.accent}50` : T.border, flexShrink: 0, transition: "background 0.4s" }} />
+              <div style={{
+                width: "32px",
+                height: "1px",
+                background: done
+                  ? `linear-gradient(90deg, ${T.accent}60, ${T.accent}20)`
+                  : T.border,
+                flexShrink: 0,
+                transition: "background 0.5s",
+              }} />
             )}
           </div>
         );
       })}
-    </div>
+    </nav>
   );
 }

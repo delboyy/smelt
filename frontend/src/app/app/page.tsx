@@ -259,6 +259,36 @@ export default function SmeltApp() {
     [suggestions, setSuggestions]
   );
 
+  const { reset } = useSmeltStore();
+
+  const handleStartNew = useCallback(() => {
+    reset();
+    setInstructions("");
+    setValidationWarnings([]);
+    setIntegrationResult(null);
+    setIntegrationError(null);
+    setShareUrl(null);
+    setCleanedRecordCount(0);
+  }, [reset]);
+
+  const downloadAuditCsv = useCallback(() => {
+    if (!result?.issues?.length) return;
+    const header = "row,field,original,cleaned,type\n";
+    const rows = result.issues
+      .map(
+        (i) =>
+          `${i.row},"${String(i.field).replace(/"/g, '""')}","${String(i.was ?? "").replace(/"/g, '""')}","${String(i.now ?? "").replace(/"/g, '""')}",${i.type}`
+      )
+      .join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "smelt_audit.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [result]);
+
   const handleDownload = useCallback(async () => {
     if (jobId) {
       await downloadExport(jobId, exportFormat, sessionToken);
@@ -698,6 +728,11 @@ export default function SmeltApp() {
                   <Button onClick={handleShare} disabled={sharing} style={{ whiteSpace: "nowrap" }}>
                     {sharing ? "Sharing…" : shareUrl ? "Link copied!" : "Share report"}
                   </Button>
+                  {result.issues.length > 0 && (
+                    <Button onClick={downloadAuditCsv} style={{ whiteSpace: "nowrap" }}>
+                      ↓ Audit CSV
+                    </Button>
+                  )}
                   <Button primary onClick={() => setStep("Export")} style={{ flex: 1 }}>
                     Export clean data →
                   </Button>
@@ -743,6 +778,25 @@ export default function SmeltApp() {
                     {copied ? "Copied!" : "Copy preview"}
                   </Button>
                   <DownloadButton format={exportFormat} onDownload={handleDownload} />
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "center", margin: "20px 0 4px" }}>
+                  <button
+                    onClick={handleStartNew}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: T.text3,
+                      fontSize: "13px",
+                      cursor: "pointer",
+                      fontFamily: "'DM Sans', sans-serif",
+                      textDecoration: "underline",
+                      textDecorationColor: T.border,
+                      textUnderlineOffset: "3px",
+                    }}
+                  >
+                    Start new smelt →
+                  </button>
                 </div>
 
                 <CRMPushTeaser exportFormat={exportFormat} />

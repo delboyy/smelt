@@ -17,4 +17,5 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     tier: Mapped[str] = mapped_column(String, default="free")  # free | pro | enterprise
     rows_used_this_month: Mapped[int] = mapped_column(default=0)
+    stripe_customer_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))

@@ -29,6 +29,7 @@ class Settings(BaseSettings):
 
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
+    stripe_price_id: str = ""
 
     sentry_dsn: str = ""
     posthog_api_key: str = ""

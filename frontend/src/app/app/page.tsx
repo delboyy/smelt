@@ -37,6 +37,8 @@ import {
   createShareLink,
   exportToAirtable,
   exportToNotion,
+  saveRecipe,
+  createCheckoutSession,
 } from "@/lib/api";
 import type { IngestResponse, CleanResponse, Suggestion } from "@/lib/api";
 import { useSession } from "next-auth/react";
@@ -109,6 +111,7 @@ export default function SmeltApp() {
 
   const [copied, setCopied] = useState(false);
   const [cleanedRecordCount, setCleanedRecordCount] = useState(0);
+  const [rowLimitError, setRowLimitError] = useState<{ count: number } | null>(null);
   const [ingestTab, setIngestTab] = useState<"file" | "paste" | "url">("file");
   const [instructions, setInstructions] = useState("");
   const [validationWarnings, setValidationWarnings] = useState<string[]>([]);
@@ -140,6 +143,13 @@ export default function SmeltApp() {
   const [compareMode, setCompareMode] = useState<"cleaned" | "original">("cleaned");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+
+  const [recipeFormOpen, setRecipeFormOpen] = useState(false);
+  const [recipeName, setRecipeName] = useState("");
+  const [recipeDescription, setRecipeDescription] = useState("");
+  const [recipeSaving, setRecipeSaving] = useState(false);
+  const [recipeSaved, setRecipeSaved] = useState(false);
+  const [recipeError, setRecipeError] = useState<string | null>(null);
 
   const applyIngestResponse = useCallback(
     async (data: IngestResponse, token?: string) => {
@@ -220,6 +230,7 @@ export default function SmeltApp() {
   const runClean = useCallback(async () => {
     if (!jobId) return;
     setError(null);
+    setRowLimitError(null);
     setLoading(true);
     setStep("Review");
     try {
@@ -230,8 +241,15 @@ export default function SmeltApp() {
       setValidationWarnings(warnings);
       if (data.quality_score) setQualityScoreAfter(data.quality_score);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Cleaning failed");
-      setStep("Preview");
+      const msg = e instanceof Error ? e.message : "Cleaning failed";
+      if (msg.includes("500 rows") || msg.includes("ROW_LIMIT_EXCEEDED") || msg.includes("Free plan is limited")) {
+        const countMatch = msg.match(/has (\d+) rows/);
+        setRowLimitError({ count: countMatch ? parseInt(countMatch[1]) : 0 });
+        setStep("Preview");
+      } else {
+        setError(msg);
+        setStep("Preview");
+      }
     } finally {
       setLoading(false);
     }
@@ -251,6 +269,24 @@ export default function SmeltApp() {
       setSharing(false);
     }
   }, [jobId]);
+
+  const handleSaveRecipe = useCallback(async () => {
+    if (!jobId || !sessionToken || !recipeName.trim()) return;
+    setRecipeSaving(true);
+    setRecipeError(null);
+    try {
+      await saveRecipe(sessionToken, jobId, recipeName.trim(), recipeDescription.trim() || undefined);
+      setRecipeSaved(true);
+      setRecipeFormOpen(false);
+      setRecipeName("");
+      setRecipeDescription("");
+      setTimeout(() => setRecipeSaved(false), 3000);
+    } catch (e) {
+      setRecipeError(e instanceof Error ? e.message : "Failed to save recipe");
+    } finally {
+      setRecipeSaving(false);
+    }
+  }, [jobId, sessionToken, recipeName, recipeDescription]);
 
   const toggleSuggestion = useCallback(
     (id: string) => {
@@ -531,8 +567,55 @@ export default function SmeltApp() {
 
                 <DataPreview records={parsed} schema={schema} />
 
+                {rowLimitError && (
+                  <div
+                    style={{
+                      background: T.amberBg,
+                      border: `1px solid ${T.amberBorder}`,
+                      borderRadius: "8px",
+                      padding: "14px 16px",
+                      marginTop: "16px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: "12px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div style={{ fontSize: "13px", color: T.amber }}>
+                      This dataset has <strong>{rowLimitError.count}</strong> rows — Free plan is limited to 500.
+                    </div>
+                    {sessionToken && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const { checkout_url } = await createCheckoutSession(sessionToken);
+                            window.location.href = checkout_url;
+                          } catch {
+                            // ignore — user can go to settings
+                          }
+                        }}
+                        style={{
+                          padding: "7px 14px",
+                          borderRadius: "6px",
+                          border: "none",
+                          background: `linear-gradient(135deg, ${T.accent}, ${T.copper})`,
+                          color: T.bg,
+                          fontSize: "12px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          fontFamily: "'DM Sans', sans-serif",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        Upgrade to Pro for unlimited rows →
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 <div style={{ display: "flex", gap: "10px", marginTop: "18px" }}>
-                  <Button onClick={() => { setStep("Ingest"); setError(null); }}>← Back</Button>
+                  <Button onClick={() => { setStep("Ingest"); setError(null); setRowLimitError(null); }}>← Back</Button>
                   <Button primary onClick={runClean} style={{ flex: 1 }}>
                     Smelt this data →
                   </Button>
@@ -723,7 +806,7 @@ export default function SmeltApp() {
                   </div>
                 )}
 
-                <div style={{ display: "flex", gap: "10px" }}>
+                <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                   <Button onClick={() => { setStep("Preview"); setResult(null); }}>← Back</Button>
                   <Button onClick={handleShare} disabled={sharing} style={{ whiteSpace: "nowrap" }}>
                     {sharing ? "Sharing…" : shareUrl ? "Link copied!" : "Share report"}
@@ -733,10 +816,125 @@ export default function SmeltApp() {
                       ↓ Audit CSV
                     </Button>
                   )}
+                  {sessionToken && jobId && (
+                    <Button
+                      onClick={() => { setRecipeFormOpen((v) => !v); setRecipeError(null); }}
+                      style={{ whiteSpace: "nowrap" }}
+                    >
+                      {recipeSaved ? "✓ Recipe saved" : "Save as recipe"}
+                    </Button>
+                  )}
                   <Button primary onClick={() => setStep("Export")} style={{ flex: 1 }}>
                     Export clean data →
                   </Button>
                 </div>
+
+                {/* Save as recipe inline form */}
+                {recipeFormOpen && (
+                  <div
+                    style={{
+                      marginTop: "12px",
+                      background: T.surface,
+                      border: `1px solid ${T.border}`,
+                      borderRadius: "10px",
+                      padding: "16px",
+                    }}
+                  >
+                    <div style={{ fontSize: "12px", fontWeight: 700, color: T.text2, marginBottom: "12px", letterSpacing: "0.3px" }}>
+                      Save transform spec as recipe
+                    </div>
+                    <input
+                      type="text"
+                      value={recipeName}
+                      onChange={(e) => setRecipeName(e.target.value)}
+                      placeholder="e.g. Clean sales pipeline CSV"
+                      style={{
+                        width: "100%",
+                        background: T.bg,
+                        border: `1px solid ${T.border}`,
+                        borderRadius: "7px",
+                        color: T.text1,
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "13px",
+                        padding: "9px 12px",
+                        outline: "none",
+                        boxSizing: "border-box",
+                        marginBottom: "8px",
+                      }}
+                      onFocus={(e) => { e.target.style.borderColor = T.accent; }}
+                      onBlur={(e) => { e.target.style.borderColor = T.border; }}
+                    />
+                    <textarea
+                      value={recipeDescription}
+                      onChange={(e) => setRecipeDescription(e.target.value)}
+                      placeholder="What does this recipe do? (optional)"
+                      rows={2}
+                      style={{
+                        width: "100%",
+                        background: T.bg,
+                        border: `1px solid ${T.border}`,
+                        borderRadius: "7px",
+                        color: T.text1,
+                        fontFamily: "'DM Sans', sans-serif",
+                        fontSize: "13px",
+                        padding: "9px 12px",
+                        outline: "none",
+                        resize: "vertical",
+                        boxSizing: "border-box",
+                        marginBottom: "10px",
+                      }}
+                      onFocus={(e) => { e.target.style.borderColor = T.accent; }}
+                      onBlur={(e) => { e.target.style.borderColor = T.border; }}
+                    />
+                    {recipeError && (
+                      <div style={{ fontSize: "12px", color: T.red, marginBottom: "8px" }}>{recipeError}</div>
+                    )}
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                      <Button
+                        primary
+                        onClick={handleSaveRecipe}
+                        disabled={recipeSaving || !recipeName.trim()}
+                      >
+                        {recipeSaving ? "Saving…" : "Save recipe"}
+                      </Button>
+                      <button
+                        onClick={() => { setRecipeFormOpen(false); setRecipeError(null); }}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          color: T.text3,
+                          fontSize: "13px",
+                          cursor: "pointer",
+                          fontFamily: "'DM Sans', sans-serif",
+                          textDecoration: "underline",
+                          textDecorationColor: T.border,
+                          textUnderlineOffset: "3px",
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {recipeSaved && !recipeFormOpen && (
+                  <div
+                    style={{
+                      marginTop: "10px",
+                      background: T.greenBg,
+                      border: `1px solid ${T.greenBorder}`,
+                      borderRadius: "8px",
+                      padding: "10px 14px",
+                      fontSize: "13px",
+                      color: T.green,
+                    }}
+                  >
+                    ✓ Recipe saved — find it in{" "}
+                    <a href="/app/recipes" style={{ color: T.green, textDecoration: "underline" }}>
+                      Recipes
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 

@@ -120,26 +120,29 @@ cd frontend && npx vercel --prod
 
 ---
 
-## 6. Stripe (Day 4 — when ready for payments)
+## 6. Stripe Billing ✅ Backend built — needs Stripe account setup
+
+The billing code is complete. Wire it up:
 
 1. Go to → https://stripe.com → Create account
-2. Create product: "Smelt Pro" → $59/month recurring
+2. Create product: "Smelt Pro" → recurring monthly price
 3. Dashboard → Developers → API keys
-   - Copy **Secret key** (`sk_live_...`) and **Publishable key** (`pk_live_...`)
-4. Webhooks → Add endpoint:
+   - Copy **Secret key** (`sk_live_...`)
+4. On the product's Price page → copy the **Price ID** (`price_...`)
+5. Webhooks → Add endpoint:
    - URL: `https://smelt-0vgv.onrender.com/api/v1/billing/webhook`
    - Events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
    - Copy **Webhook secret** (`whsec_...`)
 
-**Add to Render:**
+**Add to Render env vars:**
 ```
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID=price_...
+FRONTEND_URL=https://smelt.fyi
 ```
-**Add to Vercel:**
-```
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
-```
+
+Until these are set, billing endpoints return 503 gracefully and the UI hides the billing section.
 
 ---
 

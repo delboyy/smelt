@@ -57,6 +57,27 @@ async def clean_data(request: CleanRequest, authorization: str | None = Header(d
     records = job["records"]
     source_format = job["format"]
 
+    # Free-tier row cap
+    if user_id:
+        from sqlalchemy import select as _select
+        from app.models.user import User
+        import app.core.database as _db_mod
+        async with _db_mod.AsyncSessionLocal() as _db:
+            _result = await _db.execute(_select(User).where(User.id == user_id))
+            _user = _result.scalar_one_or_none()
+            if _user and _user.tier == "free" and len(records) > 500:
+                raise HTTPException(
+                    status_code=402,
+                    detail={
+                        "error": {
+                            "code": "ROW_LIMIT_EXCEEDED",
+                            "message": f"Free plan is limited to 500 rows. This job has {len(records)} rows. Upgrade to Pro for unlimited rows.",
+                            "limit": 500,
+                            "count": len(records),
+                        }
+                    },
+                )
+
     # Phase 1: Stratified sample
     sample = stratified_sample(records, n=100)
 

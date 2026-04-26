@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Header } from "@/components/layout/Header";
 import { T } from "@/lib/constants";
-import { fetchApiKeys, createApiKey, revokeApiKey, fetchSlackStatus, connectSlack, disconnectSlack } from "@/lib/api";
-import type { ApiKeyEntry, SlackStatus } from "@/lib/api";
+import { fetchApiKeys, createApiKey, revokeApiKey, fetchSlackStatus, connectSlack, disconnectSlack, fetchBillingStatus, createCheckoutSession, createPortalSession } from "@/lib/api";
+import type { ApiKeyEntry, SlackStatus, BillingStatus } from "@/lib/api";
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
@@ -53,6 +53,8 @@ export default function SettingsPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [slackStatus, setSlackStatus] = useState<SlackStatus | null>(null);
+  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
 
   // Get JWT token from session
   const token = (session as { accessToken?: string } | null)?.accessToken ?? "";
@@ -64,6 +66,7 @@ export default function SettingsPage() {
       Promise.all([
         fetchApiKeys(token).then(setKeys),
         fetchSlackStatus(token).then(setSlackStatus).catch(() => {}),
+        fetchBillingStatus(token).then(setBillingStatus).catch(() => {}),
       ])
         .catch((e) => setError(e.message))
         .finally(() => setLoading(false));
@@ -148,6 +151,105 @@ export default function SettingsPage() {
             </div>
           </div>
         </section>
+
+        {/* Billing */}
+        {billingStatus && (
+          <section style={{ marginBottom: "32px" }}>
+            <h2 style={{ fontSize: "14px", fontWeight: 600, color: T.text2, margin: "0 0 12px", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Billing
+            </h2>
+            <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: "10px", padding: "16px 20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: billingStatus.plan === "free" ? "14px" : "0" }}>
+                <div>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: T.text1, marginBottom: "2px" }}>
+                    {billingStatus.plan === "pro" ? "Pro Plan" : "Free Plan"}
+                  </div>
+                  <div style={{ fontSize: "12px", color: T.text3 }}>
+                    {billingStatus.plan === "pro"
+                      ? "Unlimited rows per job"
+                      : `${billingStatus.row_limit} rows per job limit`}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    padding: "3px 10px",
+                    borderRadius: "999px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    background: billingStatus.plan === "pro" ? "rgba(34,197,94,0.1)" : T.accentBg,
+                    color: billingStatus.plan === "pro" ? T.green : T.accent,
+                    border: `1px solid ${billingStatus.plan === "pro" ? "rgba(34,197,94,0.25)" : T.accentBorder}`,
+                  }}
+                >
+                  {billingStatus.plan === "pro" ? "Pro" : "Free"}
+                </span>
+              </div>
+
+              {billingStatus.plan === "free" && (
+                <button
+                  disabled={billingLoading}
+                  onClick={async () => {
+                    if (!token) return;
+                    setBillingLoading(true);
+                    try {
+                      const { checkout_url } = await createCheckoutSession(token);
+                      window.location.href = checkout_url;
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : "Could not start checkout");
+                    } finally {
+                      setBillingLoading(false);
+                    }
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    borderRadius: "7px",
+                    border: "none",
+                    background: billingLoading ? T.accentBg : `linear-gradient(135deg, ${T.accent}, ${T.copper})`,
+                    color: billingLoading ? T.accent : T.bg,
+                    fontSize: "13px",
+                    fontWeight: 700,
+                    cursor: billingLoading ? "not-allowed" : "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >
+                  {billingLoading ? "Redirecting…" : "Upgrade to Pro →"}
+                </button>
+              )}
+
+              {billingStatus.plan === "pro" && (
+                <button
+                  disabled={billingLoading}
+                  onClick={async () => {
+                    if (!token) return;
+                    setBillingLoading(true);
+                    try {
+                      const { portal_url } = await createPortalSession(token);
+                      window.location.href = portal_url;
+                    } catch (e) {
+                      setError(e instanceof Error ? e.message : "Could not open billing portal");
+                    } finally {
+                      setBillingLoading(false);
+                    }
+                  }}
+                  style={{
+                    marginTop: "12px",
+                    padding: "8px 14px",
+                    borderRadius: "6px",
+                    border: `1px solid ${T.border}`,
+                    background: "transparent",
+                    color: T.text2,
+                    fontSize: "12px",
+                    cursor: billingLoading ? "not-allowed" : "pointer",
+                    fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >
+                  {billingLoading ? "Opening…" : "Manage billing →"}
+                </button>
+              )}
+            </div>
+          </section>
+        )}
 
         {/* Integrations */}
         <section style={{ marginBottom: "32px" }}>

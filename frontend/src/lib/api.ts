@@ -299,3 +299,78 @@ export async function exportToNotion(token: string, req: NotionExportRequest): P
   });
   return handleResponse<IntegrationExportResult>(res);
 }
+
+export interface RecipeEntry {
+  id: string;
+  name: string;
+  description: string;
+  source_format: string;
+  field_count: number;
+  created_at: string;
+}
+
+export interface RecipesResponse {
+  recipes: RecipeEntry[];
+  total: number;
+}
+
+export async function fetchRecipes(token: string): Promise<RecipesResponse> {
+  const res = await fetch(`${API_URL}/api/v1/recipes`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<RecipesResponse>(res);
+}
+
+export async function saveRecipe(token: string, jobId: string, name: string, description?: string): Promise<RecipeEntry> {
+  const res = await fetch(`${API_URL}/api/v1/recipes`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ job_id: jobId, name, description: description ?? "" }),
+  });
+  return handleResponse<RecipeEntry>(res);
+}
+
+export async function deleteRecipe(token: string, id: string): Promise<void> {
+  const res = await fetch(`${API_URL}/api/v1/recipes/${id}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`Delete failed: ${res.status}`);
+}
+
+export async function applyRecipe(token: string, recipeId: string, jobId: string): Promise<CleanResponse> {
+  const res = await fetch(`${API_URL}/api/v1/recipes/${recipeId}/apply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ job_id: jobId }),
+  });
+  return handleResponse<CleanResponse>(res);
+}
+
+export interface BillingStatus {
+  plan: "free" | "pro";
+  rows_used_this_month: number;
+  row_limit: number;
+}
+
+export async function fetchBillingStatus(token: string): Promise<BillingStatus> {
+  const res = await fetch(`${API_URL}/api/v1/billing/status`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<BillingStatus>(res);
+}
+
+export async function createCheckoutSession(token: string): Promise<{ checkout_url: string }> {
+  const res = await fetch(`${API_URL}/api/v1/billing/checkout`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<{ checkout_url: string }>(res);
+}
+
+export async function createPortalSession(token: string): Promise<{ portal_url: string }> {
+  const res = await fetch(`${API_URL}/api/v1/billing/portal`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return handleResponse<{ portal_url: string }>(res);
+}

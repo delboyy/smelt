@@ -10,8 +10,11 @@ from app.api import plan as plan_api
 from app.api import reports as reports_api
 from app.api import integrations as integrations_api
 from app.api import export_integrations as export_integrations_api
+from app.api import billing as billing_api
+from app.api import recipes as recipes_api
 from app.core.database import init_db
 import app.models.api_key  # noqa: F401 — ensures ApiKey table is registered with Base.metadata
+import app.models.recipe  # noqa: F401 — ensures Recipe table is registered with Base.metadata
 
 
 @asynccontextmanager
@@ -58,6 +61,8 @@ app.include_router(plan_api.router, prefix="/api/v1", tags=["plan"])
 app.include_router(reports_api.router, prefix="/api/v1", tags=["reports"])
 app.include_router(integrations_api.router, prefix="/api/v1", tags=["integrations"])
 app.include_router(export_integrations_api.router, prefix="/api/v1", tags=["integrations"])
+app.include_router(billing_api.router, prefix="/api/v1", tags=["billing"])
+app.include_router(recipes_api.router, prefix="/api/v1", tags=["recipes"])
 
 
 @app.get("/health")

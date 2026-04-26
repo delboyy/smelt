@@ -67,6 +67,9 @@ export function Header() {
         <Link href="/app/history" style={{ fontSize: "12px", color: T.text3, textDecoration: "none" }}>
           History
         </Link>
+        <Link href="/app/recipes" style={{ fontSize: "12px", color: T.text3, textDecoration: "none" }}>
+          Recipes
+        </Link>
         <Badge color={T.accent} bg={T.accentBg} border={T.accentBorder}>
           MVP
         </Badge>

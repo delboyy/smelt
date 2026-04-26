@@ -1,6 +1,6 @@
 # Smelt — Project Status
 
-_Last updated: 2026-04-23 (full frontend-backend integration pass)_
+_Last updated: 2026-04-24 (Stripe billing, Recipe system, quick wins — 229 tests)_
 
 ---
 
@@ -35,13 +35,16 @@ _Last updated: 2026-04-23 (full frontend-backend integration pass)_
 | User model + SQLite/PostgreSQL | ✅ |
 | Security fixes (XXE, CORS, JWT, upload cap) | ✅ |
 
-### Day 4 — Stripe + Tier Gating ❌ Not started
+### Day 4 — Stripe + Tier Gating ✅ Complete
 
 | Area | Status |
 |---|---|
-| Stripe Checkout + webhook handler | ❌ |
-| Row limit enforcement (Free 500 / Pro unlimited) | ❌ |
-| Upgrade prompt in UI | ❌ |
+| Stripe Checkout + webhook handler | ✅ |
+| Row limit enforcement (Free 500 / Pro unlimited) | ✅ |
+| Upgrade prompt in UI | ✅ |
+| Billing status endpoint | ✅ |
+| Customer Portal endpoint | ✅ |
+| Billing section in Settings page | ✅ |
 
 ---
 
@@ -82,8 +85,9 @@ _Last updated: 2026-04-23 (full frontend-backend integration pass)_
 | Feature | Effort | Status |
 |---|---|---|
 | Natural language cleaning instructions | 3-4 days | ✅ (`instructions` field on CleanRequest, injected into LLM prompt; 4 new executor actions: merge_columns, rename_column, filter_rows, split_column) |
+| Recipes (save + re-apply transform specs) | 2 days | ✅ | `POST /recipes`, `GET /recipes`, `GET /recipes/{id}`, `DELETE /recipes/{id}`, `POST /recipes/{id}/apply`; `/app/recipes` UI page; "Save as recipe" in Review step |
 | Email-in (forward to clean) | 2-3 days | ❌ |
-| Stripe billing (Day 4) | 2 days | ❌ |
+| Stripe billing (Day 4) | 2 days | ✅ |
 | Recipe marketplace | 3 days | ❌ |
 | Scheduled pipelines (Enterprise) | 5 days | ❌ |
 | Google Drive / Sheets import+export | 2.5 days | ❌ (needs Google OAuth app verification) |
@@ -102,7 +106,7 @@ See [TODO.md](TODO.md) for step-by-step instructions.
 | Google OAuth credentials | Medium | "Continue with Google" hidden until set |
 | Set `CORS_ORIGINS` on Render to production domain | Medium | |
 | Slack app (Client ID + Secret) for Slack integration | Low | See TODO.md §7 |
-| Stripe account + keys (Day 4) | Low | When ready for billing |
+| Stripe account + keys | **High** | Set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID` in Render env vars |
 
 ---
 
